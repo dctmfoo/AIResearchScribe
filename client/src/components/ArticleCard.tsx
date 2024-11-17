@@ -15,6 +15,7 @@ import {
 } from 'next-share';
 import CitationList from "./CitationList";
 import type { Article } from "../../db/schema";
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 interface ArticleCardProps {
   article: Article;
@@ -282,25 +283,30 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       </Dialog>
 
       {showShareMenu && (
-        <div 
-          className="fixed inset-0 z-50"
-          onClick={() => setShowShareMenu(false)}
-        >
-          <div 
-            className="absolute right-0 top-0 bg-background border border-border shadow-lg rounded-md p-2 flex gap-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <FacebookShareButton url={shareUrl} quote={article.title}>
-              <FacebookIcon size={32} round />
-            </FacebookShareButton>
-            <TwitterShareButton url={shareUrl} title={article.title}>
-              <TwitterIcon size={32} round />
-            </TwitterShareButton>
-            <LinkedinShareButton url={shareUrl} title={article.title}>
-              <LinkedinIcon size={32} round />
-            </LinkedinShareButton>
-          </div>
-        </div>
+        <Dialog open={showShareMenu} onOpenChange={setShowShareMenu}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-center">Share Article</DialogTitle>
+              <DialogDescription className="text-center">
+                Share this article on your favorite social media platform
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-center items-center gap-4 py-4">
+              <FacebookShareButton url={shareUrl} quote={article.title}>
+                <FacebookIcon size={32} round />
+                <VisuallyHidden>Share on Facebook</VisuallyHidden>
+              </FacebookShareButton>
+              <TwitterShareButton url={shareUrl} title={article.title}>
+                <TwitterIcon size={32} round />
+                <VisuallyHidden>Share on Twitter</VisuallyHidden>
+              </TwitterShareButton>
+              <LinkedinShareButton url={shareUrl} title={article.title}>
+                <LinkedinIcon size={32} round />
+                <VisuallyHidden>Share on LinkedIn</VisuallyHidden>
+              </LinkedinShareButton>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );
