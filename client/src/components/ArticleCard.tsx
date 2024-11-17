@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -36,6 +36,14 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         <p className="text-gray-600">{article.summary}</p>
         
         <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+          <div className="flex justify-center mt-4">
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full">
+                {isExpanded ? "Show Less" : "Read More"}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          
           <CollapsibleContent className="mt-4">
             <div className="prose prose-sm max-w-none">
               {article.content}
@@ -44,14 +52,6 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           </CollapsibleContent>
         </Collapsible>
       </CardContent>
-
-      <CardFooter>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" className="w-full">
-            {isExpanded ? "Show Less" : "Read More"}
-          </Button>
-        </CollapsibleTrigger>
-      </CardFooter>
     </Card>
   );
 }
