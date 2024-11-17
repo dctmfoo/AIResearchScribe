@@ -275,7 +275,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
           <div 
             id={`dialog-description-${article.id}`}
-            className="mt-6 prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-em:text-foreground prose-li:text-foreground prose-blockquote:text-foreground prose-blockquote:border-l-border"
+            className="mt-6 prose prose-sm max-w-none dark:prose-invert prose-p:text-foreground dark:prose-p:text-foreground prose-headings:text-foreground dark:prose-headings:text-foreground prose-strong:text-foreground dark:prose-strong:text-foreground prose-em:text-foreground dark:prose-em:text-foreground prose-li:text-foreground dark:prose-li:text-foreground prose-blockquote:text-foreground dark:prose-blockquote:text-foreground prose-a:text-primary dark:prose-a:text-primary prose-code:text-foreground dark:prose-code:text-foreground"
             dangerouslySetInnerHTML={{ __html: sanitizedContent }}
           />
 
