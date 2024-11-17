@@ -3,7 +3,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Volume2, Loader2, Share2 } from "lucide-react";
+import { Volume2, Loader2, Share2, Archive, ArchiveRestore } from "lucide-react";
 import DOMPurify from 'dompurify';
 import {
   FacebookShareButton,
@@ -19,6 +19,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 interface ArticleCardProps {
   article: Article;
+  onArchiveStatusChange?: (archived: boolean) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -27,7 +28,7 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-export default function ArticleCard({ article }: ArticleCardProps) {
+export default function ArticleCard({ article, onArchiveStatusChange }: ArticleCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,6 +81,26 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowShareMenu(!showShareMenu);
+  };
+
+  const handleArchiveToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(`/api/articles/${article.id}/archive`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: !article.archived })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update article archive status');
+      }
+
+      onArchiveStatusChange?.(!article.archived);
+    } catch (error) {
+      console.error('Error updating archive status:', error);
+      setError('Failed to update archive status');
+    }
   };
 
   const sanitizedContent = DOMPurify.sanitize(article.content, {
@@ -157,21 +178,45 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               Read More
             </Button>
             
-            {article.audioUrl && (
+            <div className="flex gap-2">
+              {article.audioUrl && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleListen}
+                  disabled={isLoading}
+                  aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article`}
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Volume2 className="w-4 h-4" />
+                  )}
+                </Button>
+              )}
+              
               <Button
                 variant="outline"
                 size="icon"
-                onClick={handleListen}
-                disabled={isLoading}
-                aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article`}
+                onClick={handleArchiveToggle}
+                aria-label={article.archived ? 'Restore article' : 'Archive article'}
               >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                {article.archived ? (
+                  <ArchiveRestore className="w-4 h-4" />
                 ) : (
-                  <Volume2 className="w-4 h-4" />
+                  <Archive className="w-4 h-4" />
                 )}
               </Button>
-            )}
+              
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleShare}
+                aria-label="Share article"
+              >
+                <Share2 className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

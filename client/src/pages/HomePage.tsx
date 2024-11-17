@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import ArticleCard from "../components/ArticleCard";
 import ResearchForm from "../components/ResearchForm";
+import { Archive } from "lucide-react";
 import type { Article } from "../../db/schema";
 
 // Academic-themed decorative SVG
@@ -23,7 +24,8 @@ const AcademicDecoration = () => (
 
 export default function HomePage() {
   const [isGenerating, setIsGenerating] = useState(false);
-  const { data: articles, error } = useSWR<Article[]>("/api/articles");
+  const [showArchived, setShowArchived] = useState(false);
+  const { data: articles, error } = useSWR<Article[]>(`/api/articles?showArchived=${showArchived}`);
   const { toast } = useToast();
 
   const handleGenerate = async (topic: string) => {
@@ -37,7 +39,7 @@ export default function HomePage() {
       
       if (!response.ok) throw new Error("Failed to generate article");
       
-      await mutate("/api/articles");
+      await mutate(`/api/articles?showArchived=${showArchived}`);
       toast({
         title: "Article Generated",
         description: "Your research article has been generated successfully."
@@ -51,6 +53,10 @@ export default function HomePage() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleToggleArchived = () => {
+    setShowArchived(!showArchived);
   };
 
   // Sort articles by creation date, newest first
@@ -86,6 +92,20 @@ export default function HomePage() {
           <ResearchForm onSubmit={handleGenerate} isLoading={isGenerating} />
         </div>
 
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-serif font-bold">
+            {showArchived ? "Archived Articles" : "Active Articles"}
+          </h2>
+          <Button
+            variant="outline"
+            onClick={handleToggleArchived}
+            className="flex items-center gap-2"
+          >
+            <Archive className="w-4 h-4" />
+            {showArchived ? "Show Active" : "Show Archived"}
+          </Button>
+        </div>
+
         <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px] px-4">
           {error && (
             <div className="text-destructive text-center py-4">
@@ -101,7 +121,9 @@ export default function HomePage() {
 
           {sortedArticles && sortedArticles.length === 0 && (
             <div className="text-muted-foreground text-center py-4">
-              No articles yet. Generate your first article above!
+              {showArchived 
+                ? "No archived articles found."
+                : "No articles yet. Generate your first article above!"}
             </div>
           )}
 
@@ -115,7 +137,12 @@ export default function HomePage() {
                   height: "fit-content"
                 }}
               >
-                <ArticleCard article={article} />
+                <ArticleCard
+                  article={article}
+                  onArchiveStatusChange={(archived) => {
+                    mutate(`/api/articles?showArchived=${showArchived}`);
+                  }}
+                />
               </div>
             ))}
           </div>

@@ -37,7 +37,7 @@ async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<s
   const getCommand = new GetObjectCommand({
     Bucket: bucket,
     Key: fileName
-  }); // Added missing closing bracket
+  });
 
   // Generate a signed URL that expires in 7 days, ensuring image availability
   const signedUrl = await getSignedUrl(s3Client, getCommand, { 
@@ -143,12 +143,48 @@ export function registerRoutes(app: Express) {
   });
 
   // Get all articles
-  app.get("/api/articles", async (_req, res) => {
+  app.get("/api/articles", async (req, res) => {
     try {
-      const allArticles = await db.select().from(articles).orderBy(articles.createdAt);
+      const showArchived = req.query.showArchived === 'true';
+      const allArticles = await db
+        .select()
+        .from(articles)
+        .where(showArchived ? undefined : eq(articles.archived, false))
+        .orderBy(articles.createdAt);
       res.json(allArticles);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch articles';
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Archive/Unarchive article
+  app.patch("/api/articles/:id/archive", async (req, res) => {
+    try {
+      const articleId = parseInt(req.params.id);
+      const { archived } = req.body;
+
+      if (isNaN(articleId)) {
+        return res.status(400).json({ error: 'Invalid article ID' });
+      }
+
+      if (typeof archived !== 'boolean') {
+        return res.status(400).json({ error: 'Invalid archived status' });
+      }
+
+      const [updatedArticle] = await db
+        .update(articles)
+        .set({ archived })
+        .where(eq(articles.id, articleId))
+        .returning();
+
+      if (!updatedArticle) {
+        return res.status(404).json({ error: 'Article not found' });
+      }
+
+      res.json(updatedArticle);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update article';
       res.status(500).json({ error: errorMessage });
     }
   });
