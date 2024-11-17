@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Volume2, Pause, Play } from "lucide-react";
 import CitationList from "./CitationList";
 import type { Article } from "../../db/schema";
 
@@ -12,6 +13,47 @@ interface ArticleCardProps {
 
 export default function ArticleCard({ article }: ArticleCardProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup audio resources when component unmounts
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+    };
+  }, []);
+
+  const handleListen = async () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        setIsLoading(true);
+        try {
+          const response = await fetch(`/api/articles/${article.id}/speech`);
+          if (!response.ok) throw new Error('Failed to generate speech');
+          
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          
+          if (audioRef.current) {
+            audioRef.current.src = url;
+            await audioRef.current.play();
+            setIsPlaying(true);
+          }
+        } catch (error) {
+          console.error('Error playing audio:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    }
+  };
 
   return (
     <>
@@ -39,10 +81,10 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         <CardContent className="mt-4">
           <p className="text-gray-600">{article.summary}</p>
           
-          <div className="flex justify-center mt-4">
+          <div className="flex justify-center gap-2 mt-4">
             <Button 
               variant="outline" 
-              className="w-full"
+              className="flex-1"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsOpen(true);
@@ -50,7 +92,32 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             >
               Read More
             </Button>
+            <Button
+              variant="outline"
+              className="flex gap-2 items-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleListen();
+              }}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                "Loading..."
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4" />
+                  {isPlaying ? "Pause" : "Listen"}
+                </>
+              )}
+            </Button>
           </div>
+
+          <audio 
+            ref={audioRef}
+            onEnded={() => setIsPlaying(false)}
+            onPause={() => setIsPlaying(false)}
+            onPlay={() => setIsPlaying(true)}
+          />
         </CardContent>
       </Card>
 

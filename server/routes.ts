@@ -82,4 +82,29 @@ export function registerRoutes(app: Express) {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Generate speech from article content
+  app.post("/api/articles/:id/speech", async (req, res) => {
+    try {
+      const article = await db.select().from(articles)
+        .where(eq(articles.id, parseInt(req.params.id)))
+        .limit(1);
+      
+      if (!article.length) {
+        return res.status(404).json({ error: "Article not found" });
+      }
+
+      const mp3Response = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: "alloy",
+        input: article[0].content
+      });
+
+      const buffer = Buffer.from(await mp3Response.arrayBuffer());
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.send(buffer);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 }
