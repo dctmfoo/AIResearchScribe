@@ -48,18 +48,23 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       } else {
         setIsLoading(true);
         try {
-          // Only fetch new audio if not already loaded
-          if (!audioRef.current.src) {
-            const response = await fetch(`/api/articles/${article.id}/speech`);
-            if (!response.ok) throw new Error('Failed to generate speech');
-            
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
+          const response = await fetch(`/api/articles/${article.id}/speech`);
+          if (!response.ok) throw new Error('Failed to generate speech');
+
+          const blob = await response.blob();
+          if (blob.size === 0) throw new Error('Empty audio response');
+
+          const url = URL.createObjectURL(blob);
+          if (audioRef.current) {
             audioRef.current.src = url;
+            try {
+              await audioRef.current.play();
+              setIsPlaying(true);
+            } catch (error) {
+              console.error('Error playing audio:', error);
+              throw new Error('Failed to play audio');
+            }
           }
-          
-          await audioRef.current.play();
-          setIsPlaying(true);
         } catch (error) {
           console.error('Error playing audio:', error);
         } finally {
@@ -120,7 +125,10 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       </Card>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent 
+          className="max-w-4xl max-h-[90vh] overflow-y-auto"
+          aria-describedby="article-content"
+        >
           <DialogHeader className="flex flex-col gap-4">
             <div className="flex justify-between items-start">
               <div>
@@ -176,6 +184,10 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           </div>
 
           <CitationList articleId={article.id} />
+
+          <div id="article-content" className="sr-only">
+            Full article view for {article.title}
+          </div>
         </DialogContent>
       </Dialog>
     </>

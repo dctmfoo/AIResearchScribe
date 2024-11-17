@@ -102,6 +102,7 @@ export function registerRoutes(app: Express) {
 
       const buffer = Buffer.from(await mp3Response.arrayBuffer());
       res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', buffer.length);
       res.send(buffer);
     } catch (error) {
       res.status(500).json({ error: error.message });
