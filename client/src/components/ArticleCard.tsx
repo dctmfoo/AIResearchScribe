@@ -3,7 +3,15 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Volume2, Loader2 } from "lucide-react";
+import { Volume2, Loader2, Share2 } from "lucide-react";
+import {
+  FacebookShareButton,
+  TwitterShareButton,
+  LinkedinShareButton,
+  FacebookIcon,
+  TwitterIcon,
+  LinkedinIcon
+} from 'next-share';
 import CitationList from "./CitationList";
 import type { Article } from "../../db/schema";
 
@@ -24,7 +32,11 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showShareMenu, setShowShareMenu] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Get the current URL for sharing
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/article/${article.id}` : '';
 
   useEffect(() => {
     return () => {
@@ -65,21 +77,56 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     }
   };
 
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowShareMenu(!showShareMenu);
+  };
+
   return (
     <>
       <Card 
-        className="transition-shadow hover:shadow-lg cursor-pointer" 
+        className="transition-shadow hover:shadow-lg cursor-pointer relative" 
         onClick={() => setIsOpen(true)}
         role="article"
         aria-labelledby={`article-title-${article.id}`}
       >
         <CardHeader>
-          <h2 id={`article-title-${article.id}`} className="text-xl font-serif font-bold">
-            {article.title}
-          </h2>
-          <p className="text-sm text-gray-500">
-            {new Date(article.createdAt).toLocaleDateString()}
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 id={`article-title-${article.id}`} className="text-xl font-serif font-bold">
+                {article.title}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {new Date(article.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleShare}
+                aria-label="Share article"
+              >
+                <Share2 className="w-4 h-4" />
+              </Button>
+              {showShareMenu && (
+                <div 
+                  className="absolute right-0 top-10 bg-white shadow-lg rounded-md p-2 flex gap-2 z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <FacebookShareButton url={shareUrl} quote={article.title}>
+                    <FacebookIcon size={32} round />
+                  </FacebookShareButton>
+                  <TwitterShareButton url={shareUrl} title={article.title}>
+                    <TwitterIcon size={32} round />
+                  </TwitterShareButton>
+                  <LinkedinShareButton url={shareUrl} title={article.title}>
+                    <LinkedinIcon size={32} round />
+                  </LinkedinShareButton>
+                </div>
+              )}
+            </div>
+          </div>
         </CardHeader>
 
         {article.imageUrl && (
@@ -136,27 +183,55 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               <DialogDescription className="text-sm text-gray-500">
                 Published on {new Date(article.createdAt).toLocaleDateString()}
               </DialogDescription>
-              {article.audioUrl && (
-                <Button
-                  variant="outline"
-                  className="flex gap-2 items-center"
-                  onClick={handleListen}
-                  disabled={isLoading}
-                  aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article: ${article.title}`}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="w-4 h-4" />
-                      {isPlaying ? "Pause" : "Listen"}
-                    </>
+              <div className="flex gap-2">
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleShare}
+                    aria-label="Share article"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </Button>
+                  {showShareMenu && (
+                    <div 
+                      className="absolute right-0 top-10 bg-white shadow-lg rounded-md p-2 flex gap-2 z-10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <FacebookShareButton url={shareUrl} quote={article.title}>
+                        <FacebookIcon size={32} round />
+                      </FacebookShareButton>
+                      <TwitterShareButton url={shareUrl} title={article.title}>
+                        <TwitterIcon size={32} round />
+                      </TwitterShareButton>
+                      <LinkedinShareButton url={shareUrl} title={article.title}>
+                        <LinkedinIcon size={32} round />
+                      </LinkedinShareButton>
+                    </div>
                   )}
-                </Button>
-              )}
+                </div>
+                {article.audioUrl && (
+                  <Button
+                    variant="outline"
+                    className="flex gap-2 items-center"
+                    onClick={handleListen}
+                    disabled={isLoading}
+                    aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article: ${article.title}`}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="w-4 h-4" />
+                        {isPlaying ? "Pause" : "Listen"}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
 
             {error && (
