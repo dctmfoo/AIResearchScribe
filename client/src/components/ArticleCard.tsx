@@ -182,10 +182,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           aria-labelledby={`dialog-title-${article.id}`}
         >
           <DialogHeader>
-            <DialogTitle id={`dialog-title-${article.id}`} className="text-2xl font-serif text-foreground">
-              {article.title}
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
+            <DialogTitle>{article.title}</DialogTitle>
+            <DialogDescription>
               Published on {formatDate(article.createdAt)}
             </DialogDescription>
           </DialogHeader>
@@ -286,8 +284,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         <Dialog open={showShareMenu} onOpenChange={setShowShareMenu}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-center">Share Article</DialogTitle>
-              <DialogDescription className="text-center">
+              <DialogTitle>Share Article</DialogTitle>
+              <DialogDescription>
                 Share this article on your favorite social media platform
               </DialogDescription>
             </DialogHeader>
