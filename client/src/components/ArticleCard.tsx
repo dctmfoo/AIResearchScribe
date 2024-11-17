@@ -270,9 +270,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           <div 
             id={`dialog-description-${article.id}`}
             className="mt-6 prose prose-sm max-w-none"
-          >
-            {article.content}
-          </div>
+            dangerouslySetInnerHTML={{ __html: article.content }}
+          />
 
           <CitationList articleId={article.id} />
         </DialogContent>

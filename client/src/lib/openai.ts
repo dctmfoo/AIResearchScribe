@@ -29,11 +29,16 @@ const SYSTEM_PROMPTS = {
 5. Generate content between 400-800 words
 6. Include a concise summary
 7. Format citations in APA style
+8. Use proper HTML formatting:
+   - Wrap paragraphs in <p> tags
+   - Use <h2> tags for section headings
+   - Use <ul> and <li> for lists
+   - Preserve line breaks between sections
 
 Return the response in the following JSON structure:
 {
   "title": "Descriptive academic title",
-  "content": "Full article content with sections",
+  "content": "Full article content with HTML formatting",
   "summary": "Brief overview of key points",
   "citations": [
     {
@@ -82,6 +87,7 @@ Please generate a comprehensive academic article following these requirements:
 3. Support arguments with empirical evidence
 4. Address potential limitations and future research directions
 5. Maintain academic rigor and scholarly tone
+6. Use proper HTML formatting for structure and readability
 
 ${SYSTEM_PROMPTS.articleGeneration}`;
 }
