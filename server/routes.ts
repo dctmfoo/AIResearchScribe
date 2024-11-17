@@ -36,12 +36,10 @@ async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<s
   // Then, create a GetObjectCommand for generating the signed URL
   const getCommand = new GetObjectCommand({
     Bucket: bucket,
-    Key: fileName,
-    ResponseContentType: 'image/png',
-    ResponseContentDisposition: 'inline'
+    Key: fileName
   });
 
-  // Generate a signed URL that expires in 7 days
+  // Generate a signed URL that expires in 7 days with minimal headers
   const url = await getSignedUrl(s3Client, getCommand, { 
     expiresIn: 604800,
     signableHeaders: new Set(['host'])
