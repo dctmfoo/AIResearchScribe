@@ -11,23 +11,36 @@ interface ArticleCardProps {
   article: Article;
 }
 
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 export default function ArticleCard({ article }: ArticleCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     return () => {
-      // Cleanup audio resources when component unmounts
       if (audioRef.current) {
+        const currentSrc = audioRef.current.src;
         audioRef.current.pause();
         audioRef.current.src = '';
+        if (currentSrc.startsWith('blob:')) {
+          URL.revokeObjectURL(currentSrc);
+        }
       }
     };
   }, []);
 
-  const handleListen = async () => {
+  const handleListen = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent dialog from closing
+    
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
@@ -35,17 +48,18 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       } else {
         setIsLoading(true);
         try {
-          const response = await fetch(`/api/articles/${article.id}/speech`);
-          if (!response.ok) throw new Error('Failed to generate speech');
-          
-          const blob = await response.blob();
-          const url = URL.createObjectURL(blob);
-          
-          if (audioRef.current) {
+          // Only fetch new audio if not already loaded
+          if (!audioRef.current.src) {
+            const response = await fetch(`/api/articles/${article.id}/speech`);
+            if (!response.ok) throw new Error('Failed to generate speech');
+            
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
             audioRef.current.src = url;
-            await audioRef.current.play();
-            setIsPlaying(true);
           }
+          
+          await audioRef.current.play();
+          setIsPlaying(true);
         } catch (error) {
           console.error('Error playing audio:', error);
         } finally {
@@ -99,34 +113,52 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             onEnded={() => setIsPlaying(false)}
             onPause={() => setIsPlaying(false)}
             onPlay={() => setIsPlaying(true)}
+            onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
+            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
           />
         </CardContent>
       </Card>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="flex justify-between items-start">
-            <div>
-              <DialogTitle className="text-2xl font-serif">{article.title}</DialogTitle>
-              <p className="text-sm text-gray-500">
-                {new Date(article.createdAt).toLocaleDateString()}
-              </p>
+          <DialogHeader className="flex flex-col gap-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <DialogTitle className="text-2xl font-serif">{article.title}</DialogTitle>
+                <p className="text-sm text-gray-500">
+                  {new Date(article.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="flex gap-2 items-center"
+                onClick={handleListen}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  "Loading..."
+                ) : (
+                  <>
+                    <Volume2 className="w-4 h-4" />
+                    {isPlaying ? "Pause" : "Listen"}
+                  </>
+                )}
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              className="flex gap-2 items-center"
-              onClick={handleListen}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                "Loading..."
-              ) : (
-                <>
-                  <Volume2 className="w-4 h-4" />
-                  {isPlaying ? "Pause" : "Listen"}
-                </>
-              )}
-            </Button>
+            {isPlaying && (
+              <div className="w-full space-y-2">
+                <div className="bg-gray-200 h-1 rounded-full">
+                  <div 
+                    className="bg-primary h-1 rounded-full transition-all"
+                    style={{ width: `${(progress / duration) * 100}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>{formatTime(progress)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+              </div>
+            )}
           </DialogHeader>
 
           {article.imageUrl && (
