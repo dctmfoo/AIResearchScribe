@@ -99,10 +99,10 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <h2 id={`article-title-${article.id}`} className="text-xl font-serif font-bold">
+              <h2 id={`article-title-${article.id}`} className="text-xl font-serif font-bold text-foreground">
                 {article.title}
               </h2>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 {new Date(article.createdAt).toLocaleDateString()}
               </p>
             </div>
@@ -117,7 +117,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               </Button>
               {showShareMenu && (
                 <div 
-                  className="absolute right-0 top-10 bg-white shadow-lg rounded-md p-2 flex gap-2 z-10"
+                  className="absolute right-0 top-10 bg-background border border-border shadow-lg rounded-md p-2 flex gap-2 z-10"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <FacebookShareButton url={shareUrl} quote={article.title}>
@@ -147,7 +147,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         )}
 
         <CardContent className="mt-4">
-          <p className="text-gray-600">{article.summary}</p>
+          <p className="text-muted-foreground">{article.summary}</p>
           
           <div className="flex justify-center mt-4">
             <Button 
@@ -180,13 +180,13 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           className="max-w-4xl max-h-[90vh] overflow-y-auto"
           aria-labelledby={`dialog-title-${article.id}`}
         >
-          <DialogTitle id={`dialog-title-${article.id}`} className="text-2xl font-serif">
+          <DialogTitle id={`dialog-title-${article.id}`} className="text-2xl font-serif text-foreground">
             {article.title}
           </DialogTitle>
 
           <DialogHeader className="flex flex-col gap-4">
             <div className="flex justify-between items-start">
-              <DialogDescription className="text-sm text-gray-500">
+              <DialogDescription className="text-sm text-muted-foreground">
                 Published on {new Date(article.createdAt).toLocaleDateString()}
               </DialogDescription>
               <div className="flex gap-2">
@@ -201,7 +201,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                   </Button>
                   {showShareMenu && (
                     <div 
-                      className="absolute right-0 top-10 bg-white shadow-lg rounded-md p-2 flex gap-2 z-10"
+                      className="absolute right-0 top-10 bg-background border border-border shadow-lg rounded-md p-2 flex gap-2 z-10"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <FacebookShareButton url={shareUrl} quote={article.title}>
@@ -241,20 +241,20 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             </div>
 
             {error && (
-              <p className="text-red-500 text-sm" role="alert">
+              <p className="text-destructive text-sm" role="alert">
                 {error}
               </p>
             )}
 
             {isPlaying && (
               <div className="w-full space-y-2" role="timer" aria-label="Audio progress">
-                <div className="bg-gray-200 h-1 rounded-full">
+                <div className="bg-muted h-1 rounded-full">
                   <div 
                     className="bg-primary h-1 rounded-full transition-all"
                     style={{ width: `${(progress / duration) * 100}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-sm text-gray-500">
+                <div className="flex justify-between text-sm text-muted-foreground">
                   <span>{formatTime(progress)}</span>
                   <span>{formatTime(duration)}</span>
                 </div>
@@ -275,7 +275,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
           <div 
             id={`dialog-description-${article.id}`}
-            className="mt-6 prose prose-sm max-w-none"
+            className="mt-6 prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-em:text-foreground prose-li:text-foreground prose-blockquote:text-foreground prose-blockquote:border-l-border"
             dangerouslySetInnerHTML={{ __html: sanitizedContent }}
           />
 
