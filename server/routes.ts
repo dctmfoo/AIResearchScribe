@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { articles, citations } from "../db/schema";
 import OpenAI from "openai";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { validateArticleResponse, createImagePrompt, enhanceResearchPrompt } from "../client/src/lib/openai";
@@ -58,7 +58,7 @@ export function registerRoutes(app: Express) {
       
       // Generate article content
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4",
         messages: [
           {
             role: "system",
@@ -185,6 +185,36 @@ export function registerRoutes(app: Express) {
       res.json(updatedArticle);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update article';
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Bulk archive/unarchive articles
+  app.patch("/api/articles/bulk/archive", async (req, res) => {
+    try {
+      const { articleIds, archived } = req.body;
+
+      if (!Array.isArray(articleIds) || articleIds.length === 0) {
+        return res.status(400).json({ error: 'Invalid article IDs' });
+      }
+
+      if (typeof archived !== 'boolean') {
+        return res.status(400).json({ error: 'Invalid archived status' });
+      }
+
+      const updatedArticles = await db
+        .update(articles)
+        .set({ archived })
+        .where(inArray(articles.id, articleIds))
+        .returning();
+
+      if (!updatedArticles.length) {
+        return res.status(404).json({ error: 'No articles found' });
+      }
+
+      res.json(updatedArticles);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update articles';
       res.status(500).json({ error: errorMessage });
     }
   });

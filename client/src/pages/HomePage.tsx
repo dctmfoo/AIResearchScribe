@@ -5,7 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import ArticleCard from "../components/ArticleCard";
 import ResearchForm from "../components/ResearchForm";
-import { Archive } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2, Check } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Article } from "../../db/schema";
 
 // Academic-themed decorative SVG
@@ -25,6 +26,8 @@ const AcademicDecoration = () => (
 export default function HomePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [selectedArticles, setSelectedArticles] = useState<number[]>([]);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const { data: articles, error } = useSWR<Article[]>(`/api/articles?showArchived=${showArchived}`);
   const { toast } = useToast();
 
@@ -57,6 +60,59 @@ export default function HomePage() {
 
   const handleToggleArchived = () => {
     setShowArchived(!showArchived);
+    setSelectedArticles([]);
+  };
+
+  const handleSelectArticle = (articleId: number, selected: boolean) => {
+    setSelectedArticles(prev => 
+      selected 
+        ? [...prev, articleId]
+        : prev.filter(id => id !== articleId)
+    );
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    setSelectedArticles(
+      checked && articles 
+        ? articles.map(article => article.id)
+        : []
+    );
+  };
+
+  const handleBulkArchive = async (archive: boolean) => {
+    if (selectedArticles.length === 0) return;
+
+    setIsBulkProcessing(true);
+    try {
+      const response = await fetch('/api/articles/bulk/archive', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          articleIds: selectedArticles,
+          archived: archive
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update articles');
+      }
+
+      await mutate(`/api/articles?showArchived=${showArchived}`);
+      setSelectedArticles([]);
+      
+      toast({
+        title: `Articles ${archive ? 'Archived' : 'Restored'}`,
+        description: `Successfully ${archive ? 'archived' : 'restored'} ${selectedArticles.length} articles.`
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsBulkProcessing(false);
+    }
   };
 
   // Sort articles by creation date, newest first
@@ -93,9 +149,23 @@ export default function HomePage() {
         </div>
 
         <div className="flex justify-between items-center mb-8">
-          <h2 className="text-2xl font-serif font-bold">
-            {showArchived ? "Archived Articles" : "Active Articles"}
-          </h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-serif font-bold">
+              {showArchived ? "Archived Articles" : "Active Articles"}
+            </h2>
+            {articles && articles.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedArticles.length === articles.length}
+                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                  aria-label="Select all articles"
+                />
+                <span className="text-sm text-muted-foreground">
+                  Select All
+                </span>
+              </div>
+            )}
+          </div>
           <Button
             variant="outline"
             onClick={handleToggleArchived}
@@ -139,14 +209,48 @@ export default function HomePage() {
               >
                 <ArticleCard
                   article={article}
-                  onArchiveStatusChange={(archived) => {
+                  onArchiveStatusChange={() => {
                     mutate(`/api/articles?showArchived=${showArchived}`);
                   }}
+                  selected={selectedArticles.includes(article.id)}
+                  onSelect={(selected) => handleSelectArticle(article.id, selected)}
+                  showCheckbox={true}
                 />
               </div>
             ))}
           </div>
         </ScrollArea>
+
+        {selectedArticles.length > 0 && (
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-background border rounded-lg shadow-lg px-4 py-2 flex items-center gap-4 animate-slide-up">
+            <span className="text-sm font-medium">
+              {selectedArticles.length} article{selectedArticles.length === 1 ? '' : 's'} selected
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => handleBulkArchive(!showArchived)}
+              disabled={isBulkProcessing}
+              className="flex items-center gap-2"
+            >
+              {isBulkProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Processing...
+                </>
+              ) : showArchived ? (
+                <>
+                  <ArchiveRestore className="w-4 h-4" />
+                  Restore Selected
+                </>
+              ) : (
+                <>
+                  <Archive className="w-4 h-4" />
+                  Archive Selected
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </main>
     </div>
   );

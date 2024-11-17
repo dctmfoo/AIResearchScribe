@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Volume2, Loader2, Share2, Archive, ArchiveRestore } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import DOMPurify from 'dompurify';
 import {
   FacebookShareButton,
@@ -20,6 +21,9 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 interface ArticleCardProps {
   article: Article;
   onArchiveStatusChange?: (archived: boolean) => void;
+  selected?: boolean;
+  onSelect?: (selected: boolean) => void;
+  showCheckbox?: boolean;
 }
 
 function formatTime(seconds: number): string {
@@ -28,7 +32,13 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-export default function ArticleCard({ article, onArchiveStatusChange }: ArticleCardProps) {
+export default function ArticleCard({ 
+  article, 
+  onArchiveStatusChange,
+  selected = false,
+  onSelect,
+  showCheckbox = false
+}: ArticleCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -103,6 +113,11 @@ export default function ArticleCard({ article, onArchiveStatusChange }: ArticleC
     }
   };
 
+  const handleSelect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect?.(!selected);
+  };
+
   const sanitizedContent = DOMPurify.sanitize(article.content, {
     ALLOWED_TAGS: ['p', 'h2', 'h3', 'ul', 'li', 'ol', 'strong', 'em', 'blockquote'],
     ALLOWED_ATTR: ['class']
@@ -119,13 +134,30 @@ export default function ArticleCard({ article, onArchiveStatusChange }: ArticleC
   return (
     <>
       <Card 
-        className="transition-all duration-200 hover:shadow-lg hover:scale-[1.01] cursor-pointer relative h-full flex flex-col"
+        className={`transition-all duration-200 hover:shadow-lg hover:scale-[1.01] cursor-pointer relative h-full flex flex-col ${
+          selected ? 'ring-2 ring-primary' : ''
+        }`}
         onClick={() => setIsOpen(true)}
         role="article"
         aria-labelledby={`article-title-${article.id}`}
       >
         <CardHeader className="flex-none">
           <div className="flex justify-between items-start gap-4">
+            {showCheckbox && (
+              <div 
+                className="flex-none"
+                onClick={handleSelect}
+                role="checkbox"
+                aria-checked={selected}
+                tabIndex={0}
+              >
+                <Checkbox 
+                  checked={selected}
+                  onCheckedChange={(checked) => onSelect?.(checked as boolean)}
+                  aria-label={`Select ${article.title}`}
+                />
+              </div>
+            )}
             <div className="flex-1">
               <h2 
                 id={`article-title-${article.id}`} 
@@ -206,15 +238,6 @@ export default function ArticleCard({ article, onArchiveStatusChange }: ArticleC
                 ) : (
                   <Archive className="w-4 h-4" />
                 )}
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleShare}
-                aria-label="Share article"
-              >
-                <Share2 className="w-4 h-4" />
               </Button>
             </div>
           </div>
