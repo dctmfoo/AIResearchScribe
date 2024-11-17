@@ -7,6 +7,20 @@ import ArticleCard from "../components/ArticleCard";
 import ResearchForm from "../components/ResearchForm";
 import type { Article } from "../../db/schema";
 
+// Academic-themed decorative SVG
+const AcademicDecoration = () => (
+  <svg
+    className="absolute opacity-10 pointer-events-none"
+    width="100"
+    height="100"
+    viewBox="0 0 100 100"
+    fill="currentColor"
+  >
+    <path d="M50 0L93.3 25V75L50 100L6.7 75V25L50 0z"/>
+    <path d="M50 20L76.7 35V65L50 80L23.3 65V35L50 20z" fill="transparent" stroke="currentColor"/>
+  </svg>
+);
+
 export default function HomePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const { data: articles, error } = useSWR<Article[]>("/api/articles");
@@ -40,21 +54,47 @@ export default function HomePage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <header className="mb-8 text-center">
-        <h1 className="text-4xl font-serif font-bold mb-4">Academic Research Assistant</h1>
-        <p className="text-lg text-gray-600 mb-8">Generate comprehensive research articles powered by AI</p>
-      </header>
-
-      <ResearchForm onSubmit={handleGenerate} isLoading={isGenerating} />
-
-      <ScrollArea className="mt-8 h-[calc(100vh-300px)]">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {articles?.map((article) => (
-            <ArticleCard key={article.id} article={article} />
-          ))}
+    <div className="min-h-screen bg-background">
+      <div className="relative bg-academic-gradient overflow-hidden">
+        <div className="absolute top-0 left-0 transform -translate-x-1/2">
+          <AcademicDecoration />
         </div>
-      </ScrollArea>
+        <div className="absolute top-0 right-0 transform translate-x-1/2">
+          <AcademicDecoration />
+        </div>
+        
+        <div className="container mx-auto px-4 py-16">
+          <header className="relative text-center space-y-6 animate-fade-in">
+            <h1 className="text-5xl font-serif font-bold tracking-tight">
+              Academic Research Assistant
+            </h1>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Generate comprehensive research articles powered by AI, with academic
+              precision and scholarly depth.
+            </p>
+          </header>
+        </div>
+      </div>
+
+      <main className="container mx-auto px-4 py-12">
+        <div className="max-w-3xl mx-auto mb-16 animate-slide-in">
+          <ResearchForm onSubmit={handleGenerate} isLoading={isGenerating} />
+        </div>
+
+        <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px]">
+          <div className="grid gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {articles?.map((article, index) => (
+              <div
+                key={article.id}
+                className="animate-fade-in"
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                <ArticleCard article={article} />
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </main>
     </div>
   );
 }

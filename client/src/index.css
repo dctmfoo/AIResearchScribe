@@ -13,8 +13,56 @@
   }
 }
 
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@layer base {
+  :root {
+    --academic-primary: 210 100% 35%;
+    --academic-secondary: 200 30% 60%;
+  }
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  .animate-slide-in {
+    animation: slideIn 0.5s ease-out forwards;
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse 3s ease-in-out infinite;
+  }
+  
+  .bg-academic-gradient {
+    background: linear-gradient(135deg, hsl(var(--academic-primary) / 0.1), hsl(var(--academic-secondary) / 0.1));
+  }
+  
+  .card-hover-effect {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  }
+  
+  .card-hover-effect:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -10px hsl(var(--academic-primary) / 0.2);
   }
 }
