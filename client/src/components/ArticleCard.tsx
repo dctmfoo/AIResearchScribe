@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Volume2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Volume2, Loader2 } from "lucide-react";
 import CitationList from "./CitationList";
 import type { Article } from "../../db/schema";
 
@@ -21,55 +21,77 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        const currentSrc = audioRef.current.src;
-        audioRef.current.pause();
-        audioRef.current.src = '';
-        if (currentSrc.startsWith('blob:')) {
-          URL.revokeObjectURL(currentSrc);
-        }
-      }
+      cleanup();
     };
   }, []);
 
+  const cleanup = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+  };
+
   const handleListen = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent dialog from closing
+    e.stopPropagation();
+    setError(null);
     
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
-      } else {
-        setIsLoading(true);
+        return;
+      }
+
+      if (audioUrlRef.current) {
         try {
-          const response = await fetch(`/api/articles/${article.id}/speech`);
-          if (!response.ok) throw new Error('Failed to generate speech');
+          await audioRef.current.play();
+          setIsPlaying(true);
+          return;
+        } catch (error) {
+          console.error('Error resuming audio:', error);
+          setError('Failed to resume audio playback');
+          cleanup();
+        }
+      }
 
-          const blob = await response.blob();
-          if (blob.size === 0) throw new Error('Empty audio response');
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/articles/${article.id}/speech`);
+        if (!response.ok) throw new Error('Failed to generate speech');
 
-          const url = URL.createObjectURL(blob);
-          if (audioRef.current) {
-            audioRef.current.src = url;
-            try {
-              await audioRef.current.play();
-              setIsPlaying(true);
-            } catch (error) {
-              console.error('Error playing audio:', error);
-              throw new Error('Failed to play audio');
-            }
-          }
+        const blob = await response.blob();
+        if (blob.size === 0) throw new Error('Empty audio response');
+
+        const url = URL.createObjectURL(blob);
+        audioUrlRef.current = url;
+        audioRef.current.src = url;
+        
+        try {
+          await audioRef.current.play();
+          setIsPlaying(true);
         } catch (error) {
           console.error('Error playing audio:', error);
-        } finally {
-          setIsLoading(false);
+          throw new Error('Failed to play audio');
         }
+      } catch (error) {
+        console.error('Error playing audio:', error);
+        setError(error instanceof Error ? error.message : 'Failed to play audio');
+        cleanup();
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -79,9 +101,13 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       <Card 
         className="transition-shadow hover:shadow-lg cursor-pointer" 
         onClick={() => setIsOpen(true)}
+        role="article"
+        aria-labelledby={`article-title-${article.id}`}
       >
         <CardHeader>
-          <h2 className="text-xl font-serif font-bold">{article.title}</h2>
+          <h2 id={`article-title-${article.id}`} className="text-xl font-serif font-bold">
+            {article.title}
+          </h2>
           <p className="text-sm text-gray-500">
             {new Date(article.createdAt).toLocaleDateString()}
           </p>
@@ -91,7 +117,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           <AspectRatio ratio={16/9} className="bg-muted">
             <img 
               src={article.imageUrl} 
-              alt={article.title}
+              alt=""
+              role="presentation"
               className="object-cover w-full h-full"
             />
           </AspectRatio>
@@ -108,6 +135,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                 e.stopPropagation();
                 setIsOpen(true);
               }}
+              aria-label={`Read full article: ${article.title}`}
             >
               Read More
             </Button>
@@ -120,6 +148,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             onPlay={() => setIsPlaying(true)}
             onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
             onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+            aria-hidden="true"
           />
         </CardContent>
       </Card>
@@ -127,24 +156,31 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent 
           className="max-w-4xl max-h-[90vh] overflow-y-auto"
-          aria-describedby="article-content"
+          aria-labelledby={`dialog-title-${article.id}`}
+          aria-describedby={`dialog-description-${article.id}`}
         >
           <DialogHeader className="flex flex-col gap-4">
             <div className="flex justify-between items-start">
               <div>
-                <DialogTitle className="text-2xl font-serif">{article.title}</DialogTitle>
-                <p className="text-sm text-gray-500">
-                  {new Date(article.createdAt).toLocaleDateString()}
-                </p>
+                <DialogTitle id={`dialog-title-${article.id}`} className="text-2xl font-serif">
+                  {article.title}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-gray-500">
+                  Published on {new Date(article.createdAt).toLocaleDateString()}
+                </DialogDescription>
               </div>
               <Button
                 variant="outline"
                 className="flex gap-2 items-center"
                 onClick={handleListen}
                 disabled={isLoading}
+                aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article: ${article.title}`}
               >
                 {isLoading ? (
-                  "Loading..."
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading...
+                  </>
                 ) : (
                   <>
                     <Volume2 className="w-4 h-4" />
@@ -153,8 +189,15 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                 )}
               </Button>
             </div>
+
+            {error && (
+              <p className="text-red-500 text-sm" role="alert">
+                {error}
+              </p>
+            )}
+
             {isPlaying && (
-              <div className="w-full space-y-2">
+              <div className="w-full space-y-2" role="timer" aria-label="Audio progress">
                 <div className="bg-gray-200 h-1 rounded-full">
                   <div 
                     className="bg-primary h-1 rounded-full transition-all"
@@ -173,21 +216,21 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             <AspectRatio ratio={16/9} className="bg-muted mt-4">
               <img 
                 src={article.imageUrl} 
-                alt={article.title}
+                alt=""
+                role="presentation"
                 className="object-cover w-full h-full rounded-md"
               />
             </AspectRatio>
           )}
 
-          <div className="mt-6 prose prose-sm max-w-none">
+          <div 
+            id={`dialog-description-${article.id}`}
+            className="mt-6 prose prose-sm max-w-none"
+          >
             {article.content}
           </div>
 
           <CitationList articleId={article.id} />
-
-          <div id="article-content" className="sr-only">
-            Full article view for {article.title}
-          </div>
         </DialogContent>
       </Dialog>
     </>
