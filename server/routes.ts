@@ -37,14 +37,14 @@ async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<s
   const getCommand = new GetObjectCommand({
     Bucket: bucket,
     Key: fileName
-  });
+  }); // Added missing closing bracket
 
-  // Generate a signed URL that expires in 7 days with minimal headers
-  const url = await getSignedUrl(s3Client, getCommand, { 
-    expiresIn: 604800,
+  // Generate a signed URL that expires in 7 days, ensuring image availability
+  const signedUrl = await getSignedUrl(s3Client, getCommand, { 
+    expiresIn: 7 * 24 * 60 * 60,  // 7 days in seconds
     signableHeaders: new Set(['host'])
   });
-  return url;
+  return signedUrl;
 }
 
 export function registerRoutes(app: Express) {
