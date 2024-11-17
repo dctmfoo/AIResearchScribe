@@ -20,7 +20,7 @@ const s3Client = new S3Client({
 
 // Helper function to upload image to S3 and generate signed URL
 async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<string> {
-  const bucket = 'article-images';
+  const bucket = 'article-images-ai';
   
   // First, upload the image
   const putCommand = new PutObjectCommand({
@@ -36,11 +36,16 @@ async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<s
   // Then, create a GetObjectCommand for generating the signed URL
   const getCommand = new GetObjectCommand({
     Bucket: bucket,
-    Key: fileName
+    Key: fileName,
+    ResponseContentType: 'image/png',
+    ResponseContentDisposition: 'inline'
   });
 
   // Generate a signed URL that expires in 7 days
-  const url = await getSignedUrl(s3Client, getCommand, { expiresIn: 604800 });
+  const url = await getSignedUrl(s3Client, getCommand, { 
+    expiresIn: 604800,
+    signableHeaders: new Set(['host'])
+  });
   return url;
 }
 
