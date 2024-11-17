@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+.font-serif {
+  font-family: 'Crimson Pro', serif;
+}
+
+.prose {
+  font-family: 'Crimson Pro', serif;
+  font-size: 1.125rem;
+  line-height: 1.75;
+}
+
+.prose p {
+  margin-bottom: 1.25em;
+}
+
+.prose h1,
+.prose h2,
+.prose h3 {
+  font-family: 'Crimson Pro', serif;
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.prose blockquote {
+  font-style: italic;
+  border-left: 3px solid hsl(210, 20%, 25%);
+  padding-left: 1em;
+  margin: 1.5em 0;
+}
+
+.card {
+  background: linear-gradient(to bottom, #fff, #fafafa);
+  border: 1px solid #eee;
+}
