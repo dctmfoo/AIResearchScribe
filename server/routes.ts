@@ -3,34 +3,44 @@ import { db } from "../db";
 import { articles, citations } from "../db/schema";
 import OpenAI from "openai";
 import { eq } from "drizzle-orm";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { validateArticleResponse, createImagePrompt, enhanceResearchPrompt } from "../client/src/lib/openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Initialize S3 client
+// Initialize S3 client with proper configuration
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
   }
 });
 
-// Helper function to upload image to S3
+// Helper function to upload image to S3 and generate signed URL
 async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: 'article-images',
+  const bucket = 'article-images';
+  
+  // First, upload the image
+  const putCommand = new PutObjectCommand({
+    Bucket: bucket,
     Key: fileName,
     Body: imageBuffer,
-    ContentType: 'image/png'
+    ContentType: 'image/png',
+    CacheControl: 'max-age=31536000'
   });
 
-  await s3Client.send(command);
+  await s3Client.send(putCommand);
   
+  // Then, create a GetObjectCommand for generating the signed URL
+  const getCommand = new GetObjectCommand({
+    Bucket: bucket,
+    Key: fileName
+  });
+
   // Generate a signed URL that expires in 7 days
-  const url = await getSignedUrl(s3Client, command, { expiresIn: 604800 });
+  const url = await getSignedUrl(s3Client, getCommand, { expiresIn: 604800 });
   return url;
 }
 
