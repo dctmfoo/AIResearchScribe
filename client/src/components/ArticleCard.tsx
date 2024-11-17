@@ -3,7 +3,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Volume2, Pause, Play } from "lucide-react";
+import { Volume2 } from "lucide-react";
 import CitationList from "./CitationList";
 import type { Article } from "../../db/schema";
 
@@ -81,34 +81,16 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         <CardContent className="mt-4">
           <p className="text-gray-600">{article.summary}</p>
           
-          <div className="flex justify-center gap-2 mt-4">
+          <div className="flex justify-center mt-4">
             <Button 
               variant="outline" 
-              className="flex-1"
+              className="w-full"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsOpen(true);
               }}
             >
               Read More
-            </Button>
-            <Button
-              variant="outline"
-              className="flex gap-2 items-center"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleListen();
-              }}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                "Loading..."
-              ) : (
-                <>
-                  <Volume2 className="w-4 h-4" />
-                  {isPlaying ? "Pause" : "Listen"}
-                </>
-              )}
             </Button>
           </div>
 
@@ -123,11 +105,28 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-serif">{article.title}</DialogTitle>
-            <p className="text-sm text-gray-500">
-              {new Date(article.createdAt).toLocaleDateString()}
-            </p>
+          <DialogHeader className="flex justify-between items-start">
+            <div>
+              <DialogTitle className="text-2xl font-serif">{article.title}</DialogTitle>
+              <p className="text-sm text-gray-500">
+                {new Date(article.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="flex gap-2 items-center"
+              onClick={handleListen}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                "Loading..."
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4" />
+                  {isPlaying ? "Pause" : "Listen"}
+                </>
+              )}
+            </Button>
           </DialogHeader>
 
           {article.imageUrl && (
