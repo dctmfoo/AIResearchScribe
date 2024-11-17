@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Volume2, Loader2, Share2 } from "lucide-react";
+import DOMPurify from 'dompurify';
 import {
   FacebookShareButton,
   TwitterShareButton,
@@ -81,6 +82,11 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     e.stopPropagation();
     setShowShareMenu(!showShareMenu);
   };
+
+  const sanitizedContent = DOMPurify.sanitize(article.content, {
+    ALLOWED_TAGS: ['p', 'h2', 'h3', 'ul', 'li', 'ol', 'strong', 'em', 'blockquote'],
+    ALLOWED_ATTR: []
+  });
 
   return (
     <>
@@ -270,7 +276,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           <div 
             id={`dialog-description-${article.id}`}
             className="mt-6 prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: article.content }}
+            dangerouslySetInnerHTML={{ __html: sanitizedContent }}
           />
 
           <CitationList articleId={article.id} />
