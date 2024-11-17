@@ -12,7 +12,7 @@ export function registerRoutes(app: Express) {
     try {
       const { topic } = req.body;
       
-      // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+      // Generate article content
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -38,12 +38,24 @@ export function registerRoutes(app: Express) {
         size: "1024x1024"
       });
 
-      // Insert article
+      // Generate audio for article
+      const mp3Response = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: "alloy",
+        input: articleData.content
+      });
+
+      // Convert audio to base64 and store in cloud storage (using data URL for now)
+      const buffer = Buffer.from(await mp3Response.arrayBuffer());
+      const audioUrl = `data:audio/mpeg;base64,${buffer.toString('base64')}`;
+
+      // Insert article with audio URL
       const [article] = await db.insert(articles).values({
         title: articleData.title,
         content: articleData.content,
         summary: articleData.summary,
-        imageUrl: image.data[0].url
+        imageUrl: image.data[0].url,
+        audioUrl: audioUrl
       }).returning();
 
       // Insert citations

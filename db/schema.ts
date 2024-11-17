@@ -8,6 +8,7 @@ export const articles = pgTable("articles", {
   content: text("content").notNull(),
   summary: text("summary").notNull(),
   imageUrl: text("image_url"),
+  audioUrl: text("audio_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });

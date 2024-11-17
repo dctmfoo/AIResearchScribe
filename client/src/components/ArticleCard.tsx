@@ -11,14 +11,6 @@ interface ArticleCardProps {
   article: Article;
 }
 
-// Supported audio formats and their MIME types
-const SUPPORTED_AUDIO_FORMATS = {
-  'audio/mpeg': ['mp3'],
-  'audio/wav': ['wav'],
-  'audio/ogg': ['ogg'],
-  'audio/aac': ['aac']
-};
-
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -33,34 +25,25 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
-      cleanup();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
     };
   }, []);
-
-  const cleanup = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-    }
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current);
-      audioUrlRef.current = null;
-    }
-  };
-
-  const validateAudioFormat = (blob: Blob): boolean => {
-    const mimeType = blob.type.toLowerCase();
-    return Object.keys(SUPPORTED_AUDIO_FORMATS).includes(mimeType);
-  };
 
   const handleListen = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setError(null);
     
+    if (!article.audioUrl) {
+      setError("Audio is not available for this article");
+      return;
+    }
+
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
@@ -68,49 +51,14 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         return;
       }
 
-      if (audioUrlRef.current) {
-        try {
-          await audioRef.current.play();
-          setIsPlaying(true);
-          return;
-        } catch (error) {
-          console.error('Error resuming audio:', error);
-          setError('Failed to resume audio playback. Please try again.');
-          cleanup();
-        }
-      }
-
-      setIsLoading(true);
       try {
-        const response = await fetch(`/api/articles/${article.id}/speech`);
-        if (!response.ok) {
-          throw new Error('Failed to generate speech. Please try again later.');
-        }
-
-        const blob = await response.blob();
-        if (blob.size === 0) {
-          throw new Error('Received empty audio response. Please try again.');
-        }
-
-        if (!validateAudioFormat(blob)) {
-          throw new Error(`Unsupported audio format. Supported formats are: ${Object.values(SUPPORTED_AUDIO_FORMATS).flat().join(', ')}`);
-        }
-
-        const url = URL.createObjectURL(blob);
-        audioUrlRef.current = url;
-        audioRef.current.src = url;
-        
-        try {
-          await audioRef.current.play();
-          setIsPlaying(true);
-        } catch (error) {
-          console.error('Error playing audio:', error);
-          throw new Error('Failed to play audio. Please check your audio device and try again.');
-        }
+        setIsLoading(true);
+        audioRef.current.src = article.audioUrl;
+        await audioRef.current.play();
+        setIsPlaying(true);
       } catch (error) {
         console.error('Error playing audio:', error);
-        setError(error instanceof Error ? error.message : 'Failed to play audio');
-        cleanup();
+        setError('Failed to play audio. Please check your audio device and try again.');
       } finally {
         setIsLoading(false);
       }
@@ -178,7 +126,6 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         <DialogContent 
           className="max-w-4xl max-h-[90vh] overflow-y-auto"
           aria-labelledby={`dialog-title-${article.id}`}
-          aria-describedby={`dialog-description-${article.id}`}
         >
           <DialogTitle id={`dialog-title-${article.id}`} className="text-2xl font-serif">
             {article.title}
@@ -189,25 +136,27 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               <DialogDescription className="text-sm text-gray-500">
                 Published on {new Date(article.createdAt).toLocaleDateString()}
               </DialogDescription>
-              <Button
-                variant="outline"
-                className="flex gap-2 items-center"
-                onClick={handleListen}
-                disabled={isLoading}
-                aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article: ${article.title}`}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <Volume2 className="w-4 h-4" />
-                    {isPlaying ? "Pause" : "Listen"}
-                  </>
-                )}
-              </Button>
+              {article.audioUrl && (
+                <Button
+                  variant="outline"
+                  className="flex gap-2 items-center"
+                  onClick={handleListen}
+                  disabled={isLoading}
+                  aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article: ${article.title}`}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-4 h-4" />
+                      {isPlaying ? "Pause" : "Listen"}
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             {error && (
