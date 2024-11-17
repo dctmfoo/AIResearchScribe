@@ -4,6 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import LoadingQuotes from "./LoadingQuotes";
 
 const formSchema = z.object({
   topic: z.string().min(3, "Topic must be at least 3 characters"),
@@ -41,6 +43,7 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
                   placeholder="Enter your research topic..."
                   className="text-lg p-6"
                   {...field}
+                  disabled={isLoading}
                 />
               </FormControl>
             </FormItem>
@@ -51,8 +54,21 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
           className="w-full"
           disabled={isLoading}
         >
-          {isLoading ? "Generating Article..." : "Generate Research Article"}
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Generating Article...
+            </span>
+          ) : (
+            "Generate Research Article"
+          )}
         </Button>
+        
+        {isLoading && (
+          <div className="mt-8">
+            <LoadingQuotes />
+          </div>
+        )}
       </form>
     </Form>
   );
