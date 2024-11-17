@@ -36,7 +36,6 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const [showShareMenu, setShowShareMenu] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Get the current URL for sharing
   const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/article/${article.id}` : '';
 
   useEffect(() => {
@@ -66,7 +65,6 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
       try {
         setIsLoading(true);
-        audioRef.current.src = article.audioUrl;
         await audioRef.current.play();
         setIsPlaying(true);
       } catch (error) {
@@ -85,74 +83,70 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
   const sanitizedContent = DOMPurify.sanitize(article.content, {
     ALLOWED_TAGS: ['p', 'h2', 'h3', 'ul', 'li', 'ol', 'strong', 'em', 'blockquote'],
-    ALLOWED_ATTR: []
+    ALLOWED_ATTR: ['class']
   });
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
 
   return (
     <>
       <Card 
-        className="transition-shadow hover:shadow-lg cursor-pointer relative" 
+        className="transition-all duration-200 hover:shadow-lg hover:scale-[1.01] cursor-pointer relative h-full flex flex-col"
         onClick={() => setIsOpen(true)}
         role="article"
         aria-labelledby={`article-title-${article.id}`}
       >
-        <CardHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 id={`article-title-${article.id}`} className="text-xl font-serif font-bold text-foreground">
+        <CardHeader className="flex-none">
+          <div className="flex justify-between items-start gap-4">
+            <div className="flex-1">
+              <h2 
+                id={`article-title-${article.id}`} 
+                className="text-xl font-serif font-bold text-foreground line-clamp-2"
+              >
                 {article.title}
               </h2>
-              <p className="text-sm text-muted-foreground">
-                {new Date(article.createdAt).toLocaleDateString()}
+              <p className="text-sm text-muted-foreground mt-1">
+                {formatDate(article.createdAt)}
               </p>
             </div>
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleShare}
-                aria-label="Share article"
-              >
-                <Share2 className="w-4 h-4" />
-              </Button>
-              {showShareMenu && (
-                <div 
-                  className="absolute right-0 top-10 bg-background border border-border shadow-lg rounded-md p-2 flex gap-2 z-10"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <FacebookShareButton url={shareUrl} quote={article.title}>
-                    <FacebookIcon size={32} round />
-                  </FacebookShareButton>
-                  <TwitterShareButton url={shareUrl} title={article.title}>
-                    <TwitterIcon size={32} round />
-                  </TwitterShareButton>
-                  <LinkedinShareButton url={shareUrl} title={article.title}>
-                    <LinkedinIcon size={32} round />
-                  </LinkedinShareButton>
-                </div>
-              )}
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleShare}
+              className="flex-none"
+              aria-label="Share article"
+            >
+              <Share2 className="w-4 h-4" />
+            </Button>
           </div>
         </CardHeader>
 
         {article.imageUrl && (
-          <AspectRatio ratio={16/9} className="bg-muted">
-            <img 
-              src={article.imageUrl} 
-              alt=""
-              role="presentation"
-              className="object-cover w-full h-full"
-            />
-          </AspectRatio>
+          <div className="px-6">
+            <AspectRatio ratio={16/9} className="bg-muted rounded-md overflow-hidden">
+              <img 
+                src={article.imageUrl} 
+                alt=""
+                role="presentation"
+                className="object-cover w-full h-full"
+              />
+            </AspectRatio>
+          </div>
         )}
 
-        <CardContent className="mt-4">
-          <p className="text-muted-foreground">{article.summary}</p>
+        <CardContent className="flex-1 mt-4">
+          <p className="text-muted-foreground line-clamp-3">{article.summary}</p>
           
-          <div className="flex justify-center mt-4">
+          <div className="flex justify-between items-center mt-6 gap-2">
             <Button 
               variant="outline" 
-              className="w-full"
+              className="flex-1"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsOpen(true);
@@ -161,17 +155,23 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             >
               Read More
             </Button>
+            
+            {article.audioUrl && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleListen}
+                disabled={isLoading}
+                aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article`}
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Volume2 className="w-4 h-4" />
+                )}
+              </Button>
+            )}
           </div>
-
-          <audio 
-            ref={audioRef}
-            onEnded={() => setIsPlaying(false)}
-            onPause={() => setIsPlaying(false)}
-            onPlay={() => setIsPlaying(true)}
-            onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
-            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-            aria-hidden="true"
-          />
         </CardContent>
       </Card>
 
@@ -180,90 +180,70 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           className="max-w-4xl max-h-[90vh] overflow-y-auto"
           aria-labelledby={`dialog-title-${article.id}`}
         >
-          <DialogTitle id={`dialog-title-${article.id}`} className="text-2xl font-serif text-foreground">
-            {article.title}
-          </DialogTitle>
-
-          <DialogHeader className="flex flex-col gap-4">
-            <div className="flex justify-between items-start">
-              <DialogDescription className="text-sm text-muted-foreground">
-                Published on {new Date(article.createdAt).toLocaleDateString()}
-              </DialogDescription>
-              <div className="flex gap-2">
-                <div className="relative">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleShare}
-                    aria-label="Share article"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </Button>
-                  {showShareMenu && (
-                    <div 
-                      className="absolute right-0 top-10 bg-background border border-border shadow-lg rounded-md p-2 flex gap-2 z-10"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <FacebookShareButton url={shareUrl} quote={article.title}>
-                        <FacebookIcon size={32} round />
-                      </FacebookShareButton>
-                      <TwitterShareButton url={shareUrl} title={article.title}>
-                        <TwitterIcon size={32} round />
-                      </TwitterShareButton>
-                      <LinkedinShareButton url={shareUrl} title={article.title}>
-                        <LinkedinIcon size={32} round />
-                      </LinkedinShareButton>
-                    </div>
-                  )}
-                </div>
-                {article.audioUrl && (
-                  <Button
-                    variant="outline"
-                    className="flex gap-2 items-center"
-                    onClick={handleListen}
-                    disabled={isLoading}
-                    aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article: ${article.title}`}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <Volume2 className="w-4 h-4" />
-                        {isPlaying ? "Pause" : "Listen"}
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {error && (
-              <p className="text-destructive text-sm" role="alert">
-                {error}
-              </p>
-            )}
-
-            {isPlaying && (
-              <div className="w-full space-y-2" role="timer" aria-label="Audio progress">
-                <div className="bg-muted h-1 rounded-full">
-                  <div 
-                    className="bg-primary h-1 rounded-full transition-all"
-                    style={{ width: `${(progress / duration) * 100}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>{formatTime(progress)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
-            )}
+          <DialogHeader>
+            <DialogTitle id={`dialog-title-${article.id}`} className="text-2xl font-serif text-foreground">
+              {article.title}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Published on {formatDate(article.createdAt)}
+            </DialogDescription>
           </DialogHeader>
 
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleShare}
+              aria-label="Share article"
+            >
+              <Share2 className="w-4 h-4" />
+            </Button>
+            {article.audioUrl && (
+              <Button
+                variant="outline"
+                className="flex gap-2 items-center"
+                onClick={handleListen}
+                disabled={isLoading}
+                aria-label={`${isPlaying ? 'Pause' : 'Listen to'} article`}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-4 h-4" />
+                    {isPlaying ? "Pause" : "Listen"}
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+
+          {error && (
+            <p className="text-destructive text-sm mt-2" role="alert">
+              {error}
+            </p>
+          )}
+
+          {isPlaying && (
+            <div className="w-full space-y-2 mt-4" role="timer" aria-label="Audio progress">
+              <div className="bg-muted h-1 rounded-full">
+                <div 
+                  className="bg-primary h-1 rounded-full transition-all"
+                  style={{ width: `${(progress / duration) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>{formatTime(progress)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
+          )}
+
           {article.imageUrl && (
-            <AspectRatio ratio={16/9} className="bg-muted mt-4">
+            <AspectRatio ratio={16/9} className="bg-muted mt-6">
               <img 
                 src={article.imageUrl} 
                 alt=""
@@ -274,14 +254,54 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           )}
 
           <div 
-            id={`dialog-description-${article.id}`}
-            className="mt-6 prose prose-sm max-w-none dark:prose-invert prose-p:text-foreground dark:prose-p:text-foreground prose-headings:text-foreground dark:prose-headings:text-foreground prose-strong:text-foreground dark:prose-strong:text-foreground prose-em:text-foreground dark:prose-em:text-foreground prose-li:text-foreground dark:prose-li:text-foreground prose-blockquote:text-foreground dark:prose-blockquote:text-foreground prose-a:text-primary dark:prose-a:text-primary prose-code:text-foreground dark:prose-code:text-foreground"
+            className="mt-6 prose prose-sm max-w-none dark:prose-invert
+              prose-p:text-foreground prose-headings:text-foreground 
+              prose-strong:text-foreground prose-em:text-foreground 
+              prose-li:text-foreground prose-blockquote:text-foreground
+              prose-blockquote:border-l-primary
+              prose-h2:text-xl prose-h2:font-serif prose-h2:font-bold
+              prose-h3:text-lg prose-h3:font-serif prose-h3:font-semibold
+              prose-p:leading-relaxed prose-li:leading-relaxed
+              prose-blockquote:italic prose-blockquote:pl-4"
             dangerouslySetInnerHTML={{ __html: sanitizedContent }}
           />
 
           <CitationList articleId={article.id} />
+
+          <audio 
+            ref={audioRef}
+            src={article.audioUrl}
+            onEnded={() => setIsPlaying(false)}
+            onPause={() => setIsPlaying(false)}
+            onPlay={() => setIsPlaying(true)}
+            onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
+            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+            aria-hidden="true"
+          />
         </DialogContent>
       </Dialog>
+
+      {showShareMenu && (
+        <div 
+          className="fixed inset-0 z-50"
+          onClick={() => setShowShareMenu(false)}
+        >
+          <div 
+            className="absolute right-0 top-0 bg-background border border-border shadow-lg rounded-md p-2 flex gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <FacebookShareButton url={shareUrl} quote={article.title}>
+              <FacebookIcon size={32} round />
+            </FacebookShareButton>
+            <TwitterShareButton url={shareUrl} title={article.title}>
+              <TwitterIcon size={32} round />
+            </TwitterShareButton>
+            <LinkedinShareButton url={shareUrl} title={article.title}>
+              <LinkedinIcon size={32} round />
+            </LinkedinShareButton>
+          </div>
+        </div>
+      )}
     </>
   );
 }

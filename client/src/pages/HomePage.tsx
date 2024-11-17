@@ -53,6 +53,11 @@ export default function HomePage() {
     }
   };
 
+  // Sort articles by creation date, newest first
+  const sortedArticles = articles?.slice().sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <div className="relative bg-academic-gradient overflow-hidden">
@@ -81,13 +86,34 @@ export default function HomePage() {
           <ResearchForm onSubmit={handleGenerate} isLoading={isGenerating} />
         </div>
 
-        <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px]">
-          <div className="grid gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {articles?.map((article, index) => (
+        <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px] px-4">
+          {error && (
+            <div className="text-destructive text-center py-4">
+              Failed to load articles. Please try again later.
+            </div>
+          )}
+          
+          {!error && !articles && (
+            <div className="text-muted-foreground text-center py-4">
+              Loading articles...
+            </div>
+          )}
+
+          {sortedArticles && sortedArticles.length === 0 && (
+            <div className="text-muted-foreground text-center py-4">
+              No articles yet. Generate your first article above!
+            </div>
+          )}
+
+          <div className="grid gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+            {sortedArticles?.map((article, index) => (
               <div
                 key={article.id}
                 className="animate-fade-in"
-                style={{ animationDelay: `${index * 0.1}s` }}
+                style={{ 
+                  animationDelay: `${index * 0.1}s`,
+                  height: "fit-content"
+                }}
               >
                 <ArticleCard article={article} />
               </div>
