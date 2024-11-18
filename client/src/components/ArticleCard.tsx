@@ -165,7 +165,11 @@ export default function ArticleCard({
                       <div className="cursor-pointer">
                         <Checkbox 
                           checked={selected}
-                          onCheckedChange={(checked) => onSelect?.(checked as boolean)}
+                          onCheckedChange={(checked) => {
+                            if (typeof checked === 'boolean') {
+                              onSelect?.(checked);
+                            }
+                          }}
                           className="border-2 hover:border-primary/50"
                           aria-hidden="true"
                         />

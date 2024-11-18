@@ -64,35 +64,36 @@ export default function HomePage() {
   };
 
   const handleSelectArticle = (articleId: number, selected: boolean) => {
-    setSelectedArticles(prev => 
-      selected 
-        ? [...prev, articleId]
-        : prev.filter(id => id !== articleId)
-    );
+    setSelectedArticles(prev => {
+      if (selected && !prev.includes(articleId)) {
+        return [...prev, articleId];
+      }
+      return prev.filter(id => id !== articleId);
+    });
   };
 
   const handleSelectAll = (checked: boolean) => {
     setSelectedArticles(
       checked && articles 
-        ? articles.map(article => article.id)
+        ? [...new Set(articles.map(article => article.id))]
         : []
     );
   };
 
   const handleBulkArchive = async (archive: boolean) => {
-    if (selectedArticles.length === 0) return;
+    // Remove duplicates from selectedArticles
+    const uniqueArticleIds = [...new Set(selectedArticles)];
+    if (uniqueArticleIds.length === 0) return;
 
-    const selectedCount = selectedArticles.length;
     setIsBulkProcessing(true);
-    
     try {
-      console.log('Bulk archive payload:', { articleIds: selectedArticles, archived: archive });
+      console.log('Bulk archive payload:', { articleIds: uniqueArticleIds, archived: archive });
       
       const response = await fetch('/api/articles/bulk/archive', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          articleIds: selectedArticles,
+          articleIds: uniqueArticleIds,
           archived: archive
         })
       });
@@ -110,7 +111,7 @@ export default function HomePage() {
       
       toast({
         title: `Articles ${archive ? 'Archived' : 'Restored'}`,
-        description: `Successfully ${archive ? 'archived' : 'restored'} ${selectedCount} articles.`
+        description: `Successfully ${archive ? 'archived' : 'restored'} ${uniqueArticleIds.length} articles.`
       });
     } catch (error) {
       console.error('Bulk archive error:', error);
