@@ -114,7 +114,7 @@ export default function ArticleCard({
     }
   };
 
-  const handleSelect = (e: React.MouseEvent) => {
+  const handleSelect = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     onSelect?.(!selected);
   };
@@ -151,14 +151,19 @@ export default function ArticleCard({
                     <div 
                       className={`flex-none transition-transform duration-200 ${selected ? 'scale-110' : ''}`}
                       onClick={handleSelect}
-                      role="checkbox"
-                      aria-checked={selected}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSelect(e);
+                        }
+                      }}
+                      role="button"
                       tabIndex={0}
+                      aria-label={`Select ${article.title}`}
                     >
                       <Checkbox 
                         checked={selected}
                         onCheckedChange={(checked) => onSelect?.(checked as boolean)}
-                        aria-label={`Select ${article.title}`}
                         className="border-2 hover:border-primary/50"
                       />
                     </div>
@@ -180,15 +185,6 @@ export default function ArticleCard({
                 {formatDate(article.createdAt)}
               </p>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleShare}
-              className="flex-none"
-              aria-label="Share article"
-            >
-              <Share2 className="w-4 h-4" />
-            </Button>
           </div>
         </CardHeader>
 
