@@ -82,8 +82,12 @@ export default function HomePage() {
   const handleBulkArchive = async (archive: boolean) => {
     if (selectedArticles.length === 0) return;
 
+    const selectedCount = selectedArticles.length;
     setIsBulkProcessing(true);
+    
     try {
+      console.log('Bulk archive payload:', { articleIds: selectedArticles, archived: archive });
+      
       const response = await fetch('/api/articles/bulk/archive', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -94,17 +98,22 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update articles');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update articles');
       }
+
+      const updatedArticles = await response.json();
+      console.log('Bulk archive response:', updatedArticles);
 
       await mutate(`/api/articles?showArchived=${showArchived}`);
       setSelectedArticles([]);
       
       toast({
         title: `Articles ${archive ? 'Archived' : 'Restored'}`,
-        description: `Successfully ${archive ? 'archived' : 'restored'} ${selectedArticles.length} articles.`
+        description: `Successfully ${archive ? 'archived' : 'restored'} ${selectedCount} articles.`
       });
     } catch (error) {
+      console.error('Bulk archive error:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : 'Failed to update articles',
@@ -178,12 +187,21 @@ export default function HomePage() {
                       disabled={isBulkProcessing}
                       className="flex items-center gap-2"
                     >
-                      {showArchived ? (
-                        <ArchiveRestore className="w-4 h-4" />
+                      {isBulkProcessing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Processing...
+                        </>
                       ) : (
-                        <Archive className="w-4 h-4" />
+                        <>
+                          {showArchived ? (
+                            <ArchiveRestore className="w-4 h-4" />
+                          ) : (
+                            <Archive className="w-4 h-4" />
+                          )}
+                          {showArchived ? "Restore" : "Archive"} Selected ({selectedArticles.length})
+                        </>
                       )}
-                      {showArchived ? "Restore" : "Archive"} Selected ({selectedArticles.length})
                     </Button>
                   )}
                   <Button
