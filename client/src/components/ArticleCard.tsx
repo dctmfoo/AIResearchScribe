@@ -157,15 +157,19 @@ export default function ArticleCard({
                           handleSelect(e);
                         }
                       }}
-                      role="button"
+                      role="checkbox"
                       tabIndex={0}
+                      aria-checked={selected}
                       aria-label={`Select ${article.title}`}
                     >
-                      <Checkbox 
-                        checked={selected}
-                        onCheckedChange={(checked) => onSelect?.(checked as boolean)}
-                        className="border-2 hover:border-primary/50"
-                      />
+                      <div className="cursor-pointer">
+                        <Checkbox 
+                          checked={selected}
+                          onCheckedChange={(checked) => onSelect?.(checked as boolean)}
+                          className="border-2 hover:border-primary/50"
+                          aria-hidden="true"
+                        />
+                      </div>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>

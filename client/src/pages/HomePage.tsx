@@ -5,14 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import ArticleCard from "../components/ArticleCard";
 import ResearchForm from "../components/ResearchForm";
-import { Archive, ArchiveRestore, Loader2, Check } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import type { Article } from "../../db/schema";
 
 // Academic-themed decorative SVG
@@ -154,134 +148,102 @@ export default function HomePage() {
           <ResearchForm onSubmit={handleGenerate} isLoading={isGenerating} />
         </div>
 
-        <div className="flex justify-between items-start mb-8">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-2xl font-serif font-bold">
-              {showArchived ? "Archived Articles" : "Active Articles"}
-            </h2>
-            {articles && articles.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            checked={selectedArticles.length === articles.length}
-                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                            aria-label="Select all articles"
-                          />
-                          <span className="text-sm font-medium">
-                            Select All
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Select all articles to perform bulk actions</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+        <div className="relative">
+          {articles && articles.length > 0 && (
+            <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b p-4 mb-4">
+              <div className="flex items-center justify-between max-w-7xl mx-auto">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedArticles.length === articles.length}
+                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                      id="select-all"
+                      aria-label="Select all articles"
+                    />
+                    <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                      Select All
+                    </label>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {selectedArticles.length > 0
+                      ? `${selectedArticles.length} of ${articles.length} selected`
+                      : "Select articles to archive or restore them"}
+                  </span>
                 </div>
-                {selectedArticles.length > 0 && (
-                  <p className="text-sm text-muted-foreground ml-6">
-                    {selectedArticles.length} of {articles.length} selected
-                  </p>
-                )}
+                <div className="flex items-center gap-4">
+                  {selectedArticles.length > 0 && (
+                    <Button
+                      variant="default"
+                      onClick={() => handleBulkArchive(!showArchived)}
+                      disabled={isBulkProcessing}
+                      className="flex items-center gap-2"
+                    >
+                      {showArchived ? (
+                        <ArchiveRestore className="w-4 h-4" />
+                      ) : (
+                        <Archive className="w-4 h-4" />
+                      )}
+                      {showArchived ? "Restore" : "Archive"} Selected ({selectedArticles.length})
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={handleToggleArchived}
+                    className="flex items-center gap-2"
+                  >
+                    <Archive className="w-4 h-4" />
+                    {showArchived ? "Show Active" : "Show Archived"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px] px-4">
+            {error && (
+              <div className="text-destructive text-center py-4">
+                Failed to load articles. Please try again later.
               </div>
             )}
-          </div>
-          <Button
-            variant="outline"
-            onClick={handleToggleArchived}
-            className="flex items-center gap-2"
-          >
-            <Archive className="w-4 h-4" />
-            {showArchived ? "Show Active" : "Show Archived"}
-          </Button>
-        </div>
-
-        <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px] px-4">
-          {error && (
-            <div className="text-destructive text-center py-4">
-              Failed to load articles. Please try again later.
-            </div>
-          )}
           
-          {!error && !articles && (
-            <div className="text-muted-foreground text-center py-4">
-              Loading articles...
-            </div>
-          )}
-
-          {sortedArticles && sortedArticles.length === 0 && (
-            <div className="text-muted-foreground text-center py-4">
-              {showArchived 
-                ? "No archived articles found."
-                : "No articles yet. Generate your first article above!"}
-            </div>
-          )}
-
-          <div className="grid gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-            {sortedArticles?.map((article, index) => (
-              <div
-                key={article.id}
-                className="animate-fade-in"
-                style={{ 
-                  animationDelay: `${index * 0.1}s`,
-                  height: "fit-content"
-                }}
-              >
-                <ArticleCard
-                  article={article}
-                  onArchiveStatusChange={() => {
-                    mutate(`/api/articles?showArchived=${showArchived}`);
-                  }}
-                  selected={selectedArticles.includes(article.id)}
-                  onSelect={(selected) => handleSelectArticle(article.id, selected)}
-                  showCheckbox={true}
-                />
+            {!error && !articles && (
+              <div className="text-muted-foreground text-center py-4">
+                Loading articles...
               </div>
-            ))}
-          </div>
-        </ScrollArea>
+            )}
 
-        {selectedArticles.length > 0 && (
-          <div 
-            className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm border-2 border-primary/20 rounded-lg shadow-lg px-6 py-3 flex items-center gap-6 animate-slide-up scale-105 transition-all duration-200"
-          >
-            <div className="flex flex-col">
-              <span className="font-medium">
-                {selectedArticles.length} article{selectedArticles.length === 1 ? '' : 's'} selected
-              </span>
-              <span className="text-sm text-muted-foreground">
-                Click to {showArchived ? 'restore' : 'archive'} selected articles
-              </span>
+            {sortedArticles && sortedArticles.length === 0 && (
+              <div className="text-muted-foreground text-center py-4">
+                {showArchived 
+                  ? "No archived articles found."
+                  : "No articles yet. Generate your first article above!"}
+              </div>
+            )}
+
+            <div className="grid gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+              {sortedArticles?.map((article, index) => (
+                <div
+                  key={article.id}
+                  className="animate-fade-in"
+                  style={{ 
+                    animationDelay: `${index * 0.1}s`,
+                    height: "fit-content"
+                  }}
+                >
+                  <ArticleCard
+                    article={article}
+                    onArchiveStatusChange={() => {
+                      mutate(`/api/articles?showArchived=${showArchived}`);
+                    }}
+                    selected={selectedArticles.includes(article.id)}
+                    onSelect={(selected) => handleSelectArticle(article.id, selected)}
+                    showCheckbox={true}
+                  />
+                </div>
+              ))}
             </div>
-            <Button
-              variant="outline"
-              onClick={() => handleBulkArchive(!showArchived)}
-              disabled={isBulkProcessing}
-              className="flex items-center gap-2 min-w-[140px]"
-            >
-              {isBulkProcessing ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing...
-                </>
-              ) : showArchived ? (
-                <>
-                  <ArchiveRestore className="w-4 h-4" />
-                  Restore Selected
-                </>
-              ) : (
-                <>
-                  <Archive className="w-4 h-4" />
-                  Archive Selected
-                </>
-              )}
-            </Button>
-          </div>
-        )}
+          </ScrollArea>
+        </div>
       </main>
     </div>
   );
