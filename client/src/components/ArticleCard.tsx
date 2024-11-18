@@ -17,6 +17,7 @@ import {
 import CitationList from "./CitationList";
 import type { Article } from "../../db/schema";
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 interface ArticleCardProps {
   article: Article;
@@ -135,7 +136,7 @@ export default function ArticleCard({
     <>
       <Card 
         className={`transition-all duration-200 hover:shadow-lg hover:scale-[1.01] cursor-pointer relative h-full flex flex-col ${
-          selected ? 'ring-2 ring-primary' : ''
+          selected ? 'ring-2 ring-primary shadow-lg' : ''
         }`}
         onClick={() => setIsOpen(true)}
         role="article"
@@ -144,19 +145,29 @@ export default function ArticleCard({
         <CardHeader className="flex-none">
           <div className="flex justify-between items-start gap-4">
             {showCheckbox && (
-              <div 
-                className="flex-none"
-                onClick={handleSelect}
-                role="checkbox"
-                aria-checked={selected}
-                tabIndex={0}
-              >
-                <Checkbox 
-                  checked={selected}
-                  onCheckedChange={(checked) => onSelect?.(checked as boolean)}
-                  aria-label={`Select ${article.title}`}
-                />
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div 
+                      className={`flex-none transition-transform duration-200 ${selected ? 'scale-110' : ''}`}
+                      onClick={handleSelect}
+                      role="checkbox"
+                      aria-checked={selected}
+                      tabIndex={0}
+                    >
+                      <Checkbox 
+                        checked={selected}
+                        onCheckedChange={(checked) => onSelect?.(checked as boolean)}
+                        aria-label={`Select ${article.title}`}
+                        className="border-2 hover:border-primary/50"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Select to perform bulk actions</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             <div className="flex-1">
               <h2 

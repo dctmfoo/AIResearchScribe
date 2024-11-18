@@ -7,6 +7,12 @@ import ArticleCard from "../components/ArticleCard";
 import ResearchForm from "../components/ResearchForm";
 import { Archive, ArchiveRestore, Loader2, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Article } from "../../db/schema";
 
 // Academic-themed decorative SVG
@@ -50,7 +56,7 @@ export default function HomePage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Failed to generate article',
         variant: "destructive"
       });
     } finally {
@@ -107,7 +113,7 @@ export default function HomePage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Failed to update articles',
         variant: "destructive"
       });
     } finally {
@@ -148,21 +154,39 @@ export default function HomePage() {
           <ResearchForm onSubmit={handleGenerate} isLoading={isGenerating} />
         </div>
 
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-4">
+        <div className="flex justify-between items-start mb-8">
+          <div className="flex flex-col gap-2">
             <h2 className="text-2xl font-serif font-bold">
               {showArchived ? "Archived Articles" : "Active Articles"}
             </h2>
             {articles && articles.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={selectedArticles.length === articles.length}
-                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                  aria-label="Select all articles"
-                />
-                <span className="text-sm text-muted-foreground">
-                  Select All
-                </span>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={selectedArticles.length === articles.length}
+                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                            aria-label="Select all articles"
+                          />
+                          <span className="text-sm font-medium">
+                            Select All
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Select all articles to perform bulk actions</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                {selectedArticles.length > 0 && (
+                  <p className="text-sm text-muted-foreground ml-6">
+                    {selectedArticles.length} of {articles.length} selected
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -222,15 +246,22 @@ export default function HomePage() {
         </ScrollArea>
 
         {selectedArticles.length > 0 && (
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-background border rounded-lg shadow-lg px-4 py-2 flex items-center gap-4 animate-slide-up">
-            <span className="text-sm font-medium">
-              {selectedArticles.length} article{selectedArticles.length === 1 ? '' : 's'} selected
-            </span>
+          <div 
+            className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-background/95 backdrop-blur-sm border-2 border-primary/20 rounded-lg shadow-lg px-6 py-3 flex items-center gap-6 animate-slide-up scale-105 transition-all duration-200"
+          >
+            <div className="flex flex-col">
+              <span className="font-medium">
+                {selectedArticles.length} article{selectedArticles.length === 1 ? '' : 's'} selected
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Click to {showArchived ? 'restore' : 'archive'} selected articles
+              </span>
+            </div>
             <Button
               variant="outline"
               onClick={() => handleBulkArchive(!showArchived)}
               disabled={isBulkProcessing}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 min-w-[140px]"
             >
               {isBulkProcessing ? (
                 <>
