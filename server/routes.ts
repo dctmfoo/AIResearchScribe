@@ -142,16 +142,38 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Get all articles
+  // Get all articles with pagination
   app.get("/api/articles", async (req, res) => {
     try {
       const showArchived = req.query.showArchived === 'true';
-      const allArticles = await db
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 9;
+      const offset = (page - 1) * limit;
+
+      // Get total count for pagination
+      const totalCount = await db
+        .select({ count: sql`count(*)` })
+        .from(articles)
+        .where(showArchived ? undefined : eq(articles.archived, false));
+
+      // Get paginated articles
+      const paginatedArticles = await db
         .select()
         .from(articles)
         .where(showArchived ? undefined : eq(articles.archived, false))
-        .orderBy(articles.createdAt);
-      res.json(allArticles);
+        .orderBy(sql`${articles.createdAt} DESC`)
+        .limit(limit)
+        .offset(offset);
+
+      res.json({
+        articles: paginatedArticles,
+        pagination: {
+          total: totalCount[0].count,
+          page,
+          limit,
+          totalPages: Math.ceil(totalCount[0].count / limit)
+        }
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch articles';
       res.status(500).json({ error: errorMessage });

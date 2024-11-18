@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import ArticleCard from "../components/ArticleCard";
 import ResearchForm from "../components/ResearchForm";
-import { Archive, ArchiveRestore, Loader2 } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Article } from "../../db/schema";
 
@@ -23,12 +23,29 @@ const AcademicDecoration = () => (
   </svg>
 );
 
+interface PaginationResponse {
+  articles: Article[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export default function HomePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [selectedArticles, setSelectedArticles] = useState<number[]>([]);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
-  const { data: articles, error } = useSWR<Article[]>(`/api/articles?showArchived=${showArchived}`);
+  const [page, setPage] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const articlesPerPage = 9;
+
+  const { data, error, isLoading } = useSWR<PaginationResponse>(
+    `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`
+  );
+
   const { toast } = useToast();
 
   const handleGenerate = async (topic: string) => {
@@ -42,7 +59,7 @@ export default function HomePage() {
       
       if (!response.ok) throw new Error("Failed to generate article");
       
-      await mutate(`/api/articles?showArchived=${showArchived}`);
+      await mutate(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
       toast({
         title: "Article Generated",
         description: "Your research article has been generated successfully."
@@ -61,6 +78,7 @@ export default function HomePage() {
   const handleToggleArchived = () => {
     setShowArchived(!showArchived);
     setSelectedArticles([]);
+    setPage(1);
   };
 
   const handleSelectArticle = (articleId: number, selected: boolean) => {
@@ -73,22 +91,54 @@ export default function HomePage() {
   };
 
   const handleSelectAll = (checked: boolean) => {
+    if (!data?.articles) return;
     setSelectedArticles(
-      checked && articles 
-        ? [...new Set(articles.map(article => article.id))]
-        : []
+      checked ? [...new Set(data.articles.map(article => article.id))] : []
     );
   };
 
+  const handleLoadMore = useCallback(async () => {
+    if (!data || page >= data.pagination.totalPages) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const response = await fetch(
+        `/api/articles?showArchived=${showArchived}&page=${nextPage}&limit=${articlesPerPage}`
+      );
+      
+      if (!response.ok) throw new Error('Failed to load more articles');
+      
+      const newData = await response.json();
+      
+      // Merge the new articles with existing ones
+      await mutate(
+        `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`,
+        {
+          articles: [...(data.articles || []), ...newData.articles],
+          pagination: newData.pagination
+        },
+        false
+      );
+      
+      setPage(nextPage);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: 'Failed to load more articles',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [data, page, showArchived, toast]);
+
   const handleBulkArchive = async (archive: boolean) => {
-    // Remove duplicates from selectedArticles
     const uniqueArticleIds = [...new Set(selectedArticles)];
     if (uniqueArticleIds.length === 0) return;
 
     setIsBulkProcessing(true);
     try {
-      console.log('Bulk archive payload:', { articleIds: uniqueArticleIds, archived: archive });
-      
       const response = await fetch('/api/articles/bulk/archive', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -103,10 +153,7 @@ export default function HomePage() {
         throw new Error(errorData.error || 'Failed to update articles');
       }
 
-      const updatedArticles = await response.json();
-      console.log('Bulk archive response:', updatedArticles);
-
-      await mutate(`/api/articles?showArchived=${showArchived}`);
+      await mutate(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
       setSelectedArticles([]);
       
       toast({
@@ -125,10 +172,8 @@ export default function HomePage() {
     }
   };
 
-  // Sort articles by creation date, newest first
-  const sortedArticles = articles?.slice().sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  const articles = data?.articles || [];
+  const hasMore = data ? page < data.pagination.totalPages : false;
 
   return (
     <div className="min-h-screen bg-background">
@@ -159,7 +204,7 @@ export default function HomePage() {
         </div>
 
         <div className="relative">
-          {articles && articles.length > 0 && (
+          {articles.length > 0 && (
             <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b p-4 mb-4">
               <div className="flex items-center justify-between max-w-7xl mx-auto">
                 <div className="flex items-center gap-4">
@@ -225,13 +270,13 @@ export default function HomePage() {
               </div>
             )}
           
-            {!error && !articles && (
+            {!error && isLoading && (
               <div className="text-muted-foreground text-center py-4">
                 Loading articles...
               </div>
             )}
 
-            {sortedArticles && sortedArticles.length === 0 && (
+            {!isLoading && articles.length === 0 && (
               <div className="text-muted-foreground text-center py-4">
                 {showArchived 
                   ? "No archived articles found."
@@ -240,7 +285,7 @@ export default function HomePage() {
             )}
 
             <div className="grid gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-              {sortedArticles?.map((article, index) => (
+              {articles.map((article, index) => (
                 <div
                   key={article.id}
                   className="animate-fade-in"
@@ -252,7 +297,7 @@ export default function HomePage() {
                   <ArticleCard
                     article={article}
                     onArchiveStatusChange={() => {
-                      mutate(`/api/articles?showArchived=${showArchived}`);
+                      mutate(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
                     }}
                     selected={selectedArticles.includes(article.id)}
                     onSelect={(selected) => handleSelectArticle(article.id, selected)}
@@ -261,6 +306,30 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+
+            {hasMore && (
+              <div className="flex justify-center mt-8">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore}
+                  className="w-full max-w-xs"
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4 mr-2" />
+                      Load More Articles
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </ScrollArea>
         </div>
       </main>
