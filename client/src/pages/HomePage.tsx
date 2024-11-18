@@ -58,16 +58,14 @@ export default function HomePage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const articlesPerPage = 9;
 
+  const fetchKey = `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`;
+
   // Enhanced SWR configuration
   const { data, error, isLoading, mutate: mutateArticles } = useSWR<PaginationResponse>(
-    `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`,
+    fetchKey,
     {
-      retryCount: 3,
-      retryDelay: 1000,
-      shouldRetryOnError: true,
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
-      errorRetryInterval: 5000,
       dedupingInterval: 2000,
       onError: (err) => {
         console.error('SWR Error:', err);
@@ -84,7 +82,37 @@ export default function HomePage() {
 
   const handleGenerate = async (topic: string) => {
     setIsGenerating(true);
+    
+    // Create optimistic article data
+    const optimisticArticle = {
+      id: Date.now(), // Temporary ID
+      title: `Generating article about ${topic}...`,
+      content: "Content is being generated...",
+      summary: "Please wait while we generate your article...",
+      imageUrl: null,
+      audioUrl: null,
+      createdAt: new Date().toISOString(),
+      archived: false
+    };
+
     try {
+      // Optimistically update the cache
+      await mutateArticles(
+        (currentData?: PaginationResponse) => ({
+          articles: currentData ? [optimisticArticle, ...currentData.articles] : [optimisticArticle],
+          pagination: currentData ? {
+            ...currentData.pagination,
+            total: currentData.pagination.total + 1
+          } : {
+            total: 1,
+            page: 1,
+            limit: articlesPerPage,
+            totalPages: 1
+          }
+        }),
+        false // Don't revalidate yet
+      );
+
       const response = await fetch("/api/articles/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -93,12 +121,32 @@ export default function HomePage() {
       
       if (!response.ok) throw new Error("Failed to generate article");
       
-      await mutateArticles(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
+      const newArticle = await response.json();
+      
+      // Update the cache with the real article
+      await mutateArticles(
+        (currentData?: PaginationResponse) => ({
+          articles: currentData ? 
+            [newArticle, ...currentData.articles.filter(a => a.id !== optimisticArticle.id)] :
+            [newArticle],
+          pagination: currentData ? currentData.pagination : {
+            total: 1,
+            page: 1,
+            limit: articlesPerPage,
+            totalPages: 1
+          }
+        }),
+        false
+      );
+
       toast({
         title: "Article Generated",
         description: "Your research article has been generated successfully."
       });
     } catch (error) {
+      // Revert optimistic update on error
+      await mutateArticles();
+      
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : 'Failed to generate article',
@@ -137,21 +185,19 @@ export default function HomePage() {
     setIsLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const response = await fetch(
-        `/api/articles?showArchived=${showArchived}&page=${nextPage}&limit=${articlesPerPage}`
-      );
+      const nextPageKey = `/api/articles?showArchived=${showArchived}&page=${nextPage}&limit=${articlesPerPage}`;
       
+      const response = await fetch(nextPageKey);
       if (!response.ok) throw new Error('Failed to load more articles');
       
       const newData = await response.json();
       
-      // Merge the new articles with existing ones
+      // Update the cache with merged data
       await mutateArticles(
-        `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`,
-        {
-          articles: [...(data.articles || []), ...newData.articles],
+        (currentData?: PaginationResponse) => ({
+          articles: [...(currentData?.articles || []), ...newData.articles],
           pagination: newData.pagination
-        },
+        }),
         false
       );
       
@@ -165,14 +211,29 @@ export default function HomePage() {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [data, page, showArchived, toast]);
+  }, [data, page, showArchived, toast, mutateArticles]);
 
   const handleBulkArchive = async (archive: boolean) => {
     const uniqueArticleIds = [...new Set(selectedArticles)];
     if (uniqueArticleIds.length === 0) return;
 
     setIsBulkProcessing(true);
+    
+    // Create optimistic update
+    const optimisticData = data ? {
+      articles: data.articles.map(article => 
+        uniqueArticleIds.includes(article.id) ? { ...article, archived: archive } : article
+      ),
+      pagination: {
+        ...data.pagination,
+        total: data.pagination.total - uniqueArticleIds.length
+      }
+    } : undefined;
+
     try {
+      // Apply optimistic update
+      await mutateArticles(optimisticData, false);
+
       const response = await fetch('/api/articles/bulk/archive', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -187,7 +248,8 @@ export default function HomePage() {
         throw new Error(errorData.error || 'Failed to update articles');
       }
 
-      await mutateArticles(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
+      // Revalidate to ensure cache is correct
+      await mutateArticles();
       setSelectedArticles([]);
       
       toast({
@@ -195,6 +257,9 @@ export default function HomePage() {
         description: `Successfully ${archive ? 'archived' : 'restored'} ${uniqueArticleIds.length} articles.`
       });
     } catch (error) {
+      // Revert optimistic update on error
+      await mutateArticles();
+      
       console.error('Bulk archive error:', error);
       toast({
         title: "Error",
@@ -334,8 +399,22 @@ export default function HomePage() {
                 >
                   <ArticleCard
                     article={article}
-                    onArchiveStatusChange={() => {
-                      mutateArticles(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
+                    onArchiveStatusChange={async (archived) => {
+                      // Optimistically update the UI
+                      await mutateArticles(
+                        (currentData?: PaginationResponse) => ({
+                          articles: currentData?.articles.map(a => 
+                            a.id === article.id ? { ...a, archived } : a
+                          ) || [],
+                          pagination: currentData?.pagination || {
+                            total: 0,
+                            page: 1,
+                            limit: articlesPerPage,
+                            totalPages: 0
+                          }
+                        }),
+                        false
+                      );
                     }}
                     selected={selectedArticles.includes(article.id)}
                     onSelect={(selected) => handleSelectArticle(article.id, selected)}

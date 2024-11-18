@@ -18,6 +18,7 @@ import CitationList from "./CitationList";
 import type { Article } from "../../db/schema";
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 
 interface ArticleCardProps {
   article: Article;
@@ -48,6 +49,7 @@ export default function ArticleCard({
   const [duration, setDuration] = useState(0);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { toast } = useToast();
 
   const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/article/${article.id}` : '';
 
@@ -107,10 +109,20 @@ export default function ArticleCard({
         throw new Error('Failed to update article archive status');
       }
 
+      // Notify parent component to update SWR cache
       onArchiveStatusChange?.(!article.archived);
+      
+      toast({
+        title: article.archived ? "Article Restored" : "Article Archived",
+        description: `Article has been ${article.archived ? "restored" : "archived"} successfully.`
+      });
     } catch (error) {
       console.error('Error updating archive status:', error);
-      setError('Failed to update archive status');
+      toast({
+        title: "Error",
+        description: "Failed to update article status",
+        variant: "destructive"
+      });
     }
   };
 
@@ -145,42 +157,21 @@ export default function ArticleCard({
         <CardHeader className="flex-none">
           <div className="flex justify-between items-start gap-4">
             {showCheckbox && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div 
-                      className="flex-none transition-transform duration-200"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelect?.(!selected);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          onSelect?.(!selected);
-                        }
-                      }}
-                      role="checkbox"
-                      tabIndex={0}
-                      aria-checked={selected}
-                      aria-label={`Select ${article.title}`}
-                    >
-                      <Checkbox 
-                        checked={selected}
-                        onCheckedChange={(checked) => {
-                          if (typeof checked === 'boolean') {
-                            onSelect?.(checked);
-                          }
-                        }}
-                        className="border-2 hover:border-primary/50"
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Select to perform bulk actions</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <div 
+                className="flex-none transition-transform duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Checkbox 
+                  checked={selected}
+                  onCheckedChange={(checked) => {
+                    if (typeof checked === 'boolean') {
+                      onSelect?.(checked);
+                    }
+                  }}
+                  className="border-2 hover:border-primary/50"
+                  aria-label={`Select ${article.title}`}
+                />
+              </div>
             )}
             <div className="flex-1">
               <h2 
@@ -190,7 +181,11 @@ export default function ArticleCard({
                 {article.title}
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                {formatDate(article.createdAt)}
+                {new Date(article.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
               </p>
             </div>
           </div>
