@@ -235,8 +235,8 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
       setInterimTranscript("");
       setRetryCount(0);
       toast({
-        title: "Stopped",
-        description: "Speech recognition stopped",
+        title: "Success",
+        description: "Speech recognition stopped. Text has been captured.",
       });
       return;
     }
