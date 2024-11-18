@@ -81,7 +81,7 @@ export function registerRoutes(app: Express) {
       let completion;
       try {
         completion = await openai.chat.completions.create({
-          model: "gpt-4",
+          model: "gpt-4o",
           messages: [
             {
               role: "system",
