@@ -230,19 +230,32 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
 
   const toggleSpeechRecognition = useCallback(() => {
     if (isListening && recognitionRef.current) {
-      recognitionRef.current.abort();
-      setIsListening(false);
-      setInterimTranscript("");
-      setRetryCount(0);
-      toast({
-        title: "Success",
-        description: "Speech recognition stopped. Text has been captured.",
-      });
-      return;
+      try {
+        recognitionRef.current.abort();
+        recognitionRef.current.removeEventListener('end', handleRecognitionEnd);
+        setIsListening(false);
+        setInterimTranscript("");
+        setRetryCount(0);
+        // Only show success toast if we have captured some text
+        if (finalTranscriptRef.current.trim()) {
+          toast({
+            title: "Success",
+            description: "Speech recognition stopped. Text has been captured.",
+          });
+        }
+        return;
+      } catch (error) {
+        console.error('Error stopping speech recognition:', error);
+        toast({
+          title: "Error",
+          description: "Failed to stop speech recognition properly.",
+          variant: "destructive",
+        });
+      }
     }
 
     startRecognition();
-  }, [isListening, startRecognition, toast]);
+  }, [isListening, startRecognition, toast, handleRecognitionEnd]);
 
   return (
     <Form {...form}>
