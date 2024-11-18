@@ -26,13 +26,13 @@ const LENGTH_CONFIGS = {
     temperature: 0.7,
   },
   medium: {
-    wordCount: "600-800",
-    maxTokens: 1500,
+    wordCount: "600-1000",
+    maxTokens: 2000,
     temperature: 0.7,
   },
   long: {
-    wordCount: "1000-1200",
-    maxTokens: 2000,
+    wordCount: "1200-2000",
+    maxTokens: 4000,
     temperature: 0.7,
   },
 } as const;
