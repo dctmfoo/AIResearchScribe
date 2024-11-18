@@ -40,7 +40,9 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
   const [speechSupported, setSpeechSupported] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState("");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const finalTranscriptRef = useRef("");
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -80,6 +82,8 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
         }
         setIsListening(false);
         setIsInitializing(false);
+        setInterimTranscript("");
+        finalTranscriptRef.current = "";
       }
     };
   }, [checkSpeechRecognition, toast]);
@@ -117,9 +121,17 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
   };
 
   const handleRecognitionEnd = useCallback(() => {
-    setIsListening(false);
-    setIsInitializing(false);
-  }, []);
+    if (isListening) {
+      // If we're still supposed to be listening, restart recognition
+      startRecognition();
+    } else {
+      setIsListening(false);
+      setIsInitializing(false);
+      setInterimTranscript("");
+      // Set the final accumulated transcript to the form
+      form.setValue('topic', finalTranscriptRef.current.trim(), { shouldValidate: true });
+    }
+  }, [form, isListening]);
 
   const initializeSpeechRecognition = useCallback(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -128,8 +140,8 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;  // Enable continuous recognition
+    recognition.interimResults = true;  // Enable interim results
     recognition.lang = 'en-US';
 
     recognition.addEventListener('end', handleRecognitionEnd);
@@ -138,6 +150,7 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
 
   const startRecognition = useCallback(async () => {
     setIsInitializing(true);
+    finalTranscriptRef.current = form.getValues('topic'); // Preserve existing text
 
     try {
       if (!recognitionRef.current) {
@@ -149,25 +162,33 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
         setIsInitializing(false);
         toast({
           title: "Listening...",
-          description: "Speak your research topic clearly",
+          description: "Speak your research topic. Click the microphone again to stop.",
         });
       };
 
       recognitionRef.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        form.setValue('topic', transcript, { shouldValidate: true });
-        setIsListening(false);
-        setRetryCount(0);
-        toast({
-          title: "Got it!",
-          description: "Successfully captured your research topic.",
-        });
+        let interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscriptRef.current += ' ' + transcript;
+            // Update form with accumulated final transcript
+            form.setValue('topic', finalTranscriptRef.current.trim(), { shouldValidate: true });
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        // Update interim transcript for visual feedback
+        setInterimTranscript(interimTranscript);
       };
 
       recognitionRef.current.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
         setIsInitializing(false);
+        setInterimTranscript("");
 
         const errorType = event.error as SpeechRecognitionErrorType;
         const errorMessage = getErrorMessage(errorType);
@@ -198,6 +219,7 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
       console.error('Failed to start speech recognition:', error);
       setIsListening(false);
       setIsInitializing(false);
+      setInterimTranscript("");
       toast({
         title: "Error",
         description: getErrorMessage('init-failed'),
@@ -210,6 +232,7 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
     if (isListening && recognitionRef.current) {
       recognitionRef.current.abort();
       setIsListening(false);
+      setInterimTranscript("");
       setRetryCount(0);
       toast({
         title: "Stopped",
@@ -231,21 +254,28 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
             <FormItem>
               <FormLabel className="text-lg font-serif">Research Topic</FormLabel>
               <div className="flex gap-2">
-                <FormControl>
-                  <Input 
-                    placeholder="Enter your research topic..."
-                    className="text-lg p-6"
-                    {...field}
-                    disabled={isLoading}
-                  />
-                </FormControl>
+                <div className="flex-1 relative">
+                  <FormControl>
+                    <Input 
+                      placeholder="Enter your research topic..."
+                      className="text-lg p-6"
+                      {...field}
+                      disabled={isLoading}
+                    />
+                  </FormControl>
+                  {interimTranscript && (
+                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center px-4 animate-pulse">
+                      <p className="text-muted-foreground">{interimTranscript}</p>
+                    </div>
+                  )}
+                </div>
                 {speechSupported && (
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    className={`flex-shrink-0 transition-colors duration-200 ${
-                      isListening ? 'bg-destructive hover:bg-destructive/90' : ''
+                    className={`flex-shrink-0 transition-all duration-200 ${
+                      isListening ? 'bg-destructive hover:bg-destructive/90 ring-2 ring-destructive ring-offset-2' : ''
                     }`}
                     onClick={toggleSpeechRecognition}
                     disabled={isLoading || isInitializing}
