@@ -1,9 +1,26 @@
 import useSWR from "swr";
 import type { User, InsertUser } from "../../../db/schema";
 
+const fetcher = (url: string) =>
+  fetch(url, { credentials: "include" }).then((r) => {
+    if (!r.ok) {
+      throw { info: r.json(), status: r.status };
+    }
+    return r.json();
+  });
+
 export function useUser() {
-  const { data, error, mutate } = useSWR<User, Error>("/api/user", {
-    revalidateOnFocus: false,
+  const { data, error, mutate } = useSWR<User, Error>("/api/user", fetcher, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    shouldRetryOnError: false,
+    onError: (err) => {
+      if (err?.status === 401) {
+        // Ignore unauthorized errors as they're expected when not logged in
+        return;
+      }
+      console.error("User fetch error:", err);
+    }
   });
 
   return {
@@ -12,17 +29,17 @@ export function useUser() {
     error,
     login: async (user: InsertUser) => {
       const res = await handleRequest("/login", "POST", user);
-      mutate();
+      await mutate();
       return res;
     },
     logout: async () => {
       const res = await handleRequest("/logout", "POST");
-      mutate(undefined);
+      await mutate(undefined);
       return res;
     },
     register: async (user: InsertUser) => {
       const res = await handleRequest("/register", "POST", user);
-      mutate();
+      await mutate();
       return res;
     },
   };
