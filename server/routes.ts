@@ -7,6 +7,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { validateArticleResponse, createImagePrompt, enhanceResearchPrompt, lengthConfigs, type ArticleLength } from "../client/src/lib/openai";
 import { setupAuth } from "./auth";
+import { openaiLimiter, articleGenerationLimiter, speechGenerationLimiter } from "./middleware/rate-limit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -60,8 +61,8 @@ export function registerRoutes(app: Express) {
   // Set up authentication routes
   setupAuth(app);
 
-  // Generate article (protected)
-  app.post("/api/articles/generate", requireAuth, async (req, res) => {
+  // Generate article (protected and rate limited)
+  app.post("/api/articles/generate", requireAuth, articleGenerationLimiter, async (req, res) => {
     try {
       const { topic, length = "medium" } = req.body;
       if (!topic || typeof topic !== 'string') {
@@ -329,8 +330,8 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Generate speech from article content (protected)
-  app.post("/api/articles/:id/speech", requireAuth, async (req, res) => {
+  // Generate speech from article content (protected and rate limited)
+  app.post("/api/articles/:id/speech", requireAuth, speechGenerationLimiter, async (req, res) => {
     try {
       const articleId = parseInt(req.params.id);
       if (isNaN(articleId)) {
