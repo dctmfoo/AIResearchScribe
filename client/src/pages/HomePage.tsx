@@ -5,8 +5,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import ArticleCard from "../components/ArticleCard";
 import ResearchForm from "../components/ResearchForm";
-import { Archive, ArchiveRestore, Loader2, ChevronDown } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2, ChevronDown, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Article } from "../../db/schema";
 
 // Academic-themed decorative SVG
@@ -33,6 +34,21 @@ interface PaginationResponse {
   };
 }
 
+// Error Boundary Component
+function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) {
+  return (
+    <Alert variant="destructive" className="my-4">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription>
+        {error.message}
+      </AlertDescription>
+      <Button onClick={resetErrorBoundary} variant="outline" size="sm" className="mt-2">
+        Try Again
+      </Button>
+    </Alert>
+  );
+}
+
 export default function HomePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -42,8 +58,26 @@ export default function HomePage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const articlesPerPage = 9;
 
-  const { data, error, isLoading } = useSWR<PaginationResponse>(
-    `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`
+  // Enhanced SWR configuration
+  const { data, error, isLoading, mutate: mutateArticles } = useSWR<PaginationResponse>(
+    `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`,
+    {
+      retryCount: 3,
+      retryDelay: 1000,
+      shouldRetryOnError: true,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+      errorRetryInterval: 5000,
+      dedupingInterval: 2000,
+      onError: (err) => {
+        console.error('SWR Error:', err);
+        toast({
+          title: "Error",
+          description: "Failed to load articles. Retrying...",
+          variant: "destructive"
+        });
+      }
+    }
   );
 
   const { toast } = useToast();
@@ -59,7 +93,7 @@ export default function HomePage() {
       
       if (!response.ok) throw new Error("Failed to generate article");
       
-      await mutate(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
+      await mutateArticles(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
       toast({
         title: "Article Generated",
         description: "Your research article has been generated successfully."
@@ -112,7 +146,7 @@ export default function HomePage() {
       const newData = await response.json();
       
       // Merge the new articles with existing ones
-      await mutate(
+      await mutateArticles(
         `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`,
         {
           articles: [...(data.articles || []), ...newData.articles],
@@ -153,7 +187,7 @@ export default function HomePage() {
         throw new Error(errorData.error || 'Failed to update articles');
       }
 
-      await mutate(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
+      await mutateArticles(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
       setSelectedArticles([]);
       
       toast({
@@ -174,6 +208,16 @@ export default function HomePage() {
 
   const articles = data?.articles || [];
   const hasMore = data ? page < data.pagination.totalPages : false;
+
+  // Add loading and error states
+  if (error) {
+    return (
+      <ErrorFallback 
+        error={error} 
+        resetErrorBoundary={() => mutateArticles()} 
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -264,23 +308,17 @@ export default function HomePage() {
           )}
 
           <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px] px-4">
-            {error && (
-              <div className="text-destructive text-center py-4">
-                Failed to load articles. Please try again later.
-              </div>
-            )}
-          
-            {!error && isLoading && (
-              <div className="text-muted-foreground text-center py-4">
-                Loading articles...
-              </div>
-            )}
-
             {!isLoading && articles.length === 0 && (
               <div className="text-muted-foreground text-center py-4">
                 {showArchived 
                   ? "No archived articles found."
                   : "No articles yet. Generate your first article above!"}
+              </div>
+            )}
+
+            {isLoading && (
+              <div className="text-muted-foreground text-center py-4">
+                Loading articles...
               </div>
             )}
 
@@ -297,7 +335,7 @@ export default function HomePage() {
                   <ArticleCard
                     article={article}
                     onArchiveStatusChange={() => {
-                      mutate(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
+                      mutateArticles(`/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`);
                     }}
                     selected={selectedArticles.includes(article.id)}
                     onSelect={(selected) => handleSelectArticle(article.id, selected)}

@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { articles, citations } from "../db/schema";
 import OpenAI from "openai";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { validateArticleResponse, createImagePrompt, enhanceResearchPrompt } from "../client/src/lib/openai";
@@ -55,86 +55,122 @@ export function registerRoutes(app: Express) {
       if (!topic || typeof topic !== 'string') {
         return res.status(400).json({ error: 'Invalid topic provided' });
       }
-      
-      // Generate article content
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content: enhanceResearchPrompt(topic)
-          }
-        ],
-        response_format: { type: "json_object" }
-      });
 
-      if (!completion.choices[0].message.content) {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OpenAI API key is not configured');
+      }
+      
+      // Generate article content with better error handling
+      let completion;
+      try {
+        completion = await openai.chat.completions.create({
+          model: "gpt-4",
+          messages: [
+            {
+              role: "system",
+              content: enhanceResearchPrompt(topic)
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        });
+      } catch (error: any) {
+        console.error('OpenAI API Error:', error);
+        throw new Error(
+          error.message || 'Failed to generate article content'
+        );
+      }
+
+      if (!completion.choices[0]?.message?.content) {
         throw new Error('No content generated from OpenAI');
       }
 
-      const articleData = validateArticleResponse(
-        JSON.parse(completion.choices[0].message.content)
-      );
+      // Parse the response manually with error handling
+      let articleData;
+      try {
+        articleData = validateArticleResponse(
+          JSON.parse(completion.choices[0].message.content)
+        );
+      } catch (error) {
+        console.error('JSON Parsing Error:', error);
+        throw new Error('Failed to parse generated content');
+      }
       
-      // Generate image for article
-      const image = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: createImagePrompt(articleData.title),
-        n: 1,
-        size: "1024x1024"
-      });
+      // Generate image for article with error handling
+      let imageUrl;
+      try {
+        const image = await openai.images.generate({
+          model: "dall-e-3",
+          prompt: createImagePrompt(articleData.title),
+          n: 1,
+          size: "1024x1024"
+        });
 
-      if (!image.data[0]?.url) {
-        throw new Error('No image generated from OpenAI');
+        if (!image.data[0]?.url) {
+          throw new Error('No image URL in the response');
+        }
+
+        // Download and upload image
+        const imageResponse = await fetch(image.data[0].url);
+        if (!imageResponse.ok) {
+          throw new Error('Failed to download generated image');
+        }
+
+        const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+        const fileName = `${Date.now()}-${articleData.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`;
+        imageUrl = await uploadImageToS3(imageBuffer, fileName);
+      } catch (error: any) {
+        console.error('Image Generation Error:', error);
+        throw new Error('Failed to generate or process image');
       }
 
-      // Download image and upload to S3
-      const imageResponse = await fetch(image.data[0].url);
-      if (!imageResponse.ok) {
-        throw new Error('Failed to download generated image');
+      // Generate audio with error handling
+      let audioUrl;
+      try {
+        const mp3Response = await openai.audio.speech.create({
+          model: "tts-1",
+          voice: "alloy",
+          input: articleData.content.replace(/<[^>]*>/g, '') // Remove HTML tags for audio
+        });
+
+        const buffer = Buffer.from(await mp3Response.arrayBuffer());
+        audioUrl = `data:audio/mpeg;base64,${buffer.toString('base64')}`;
+      } catch (error: any) {
+        console.error('Audio Generation Error:', error);
+        throw new Error('Failed to generate audio content');
       }
-
-      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-      const fileName = `${Date.now()}-${articleData.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`;
-      const imageUrl = await uploadImageToS3(imageBuffer, fileName);
-
-      // Generate audio for article
-      const mp3Response = await openai.audio.speech.create({
-        model: "tts-1",
-        voice: "alloy",
-        input: articleData.content.replace(/<[^>]*>/g, '') // Remove HTML tags for audio
-      });
-
-      // Convert audio to base64 and store in cloud storage
-      const buffer = Buffer.from(await mp3Response.arrayBuffer());
-      const audioUrl = `data:audio/mpeg;base64,${buffer.toString('base64')}`;
 
       // Insert article with audio URL
-      const [article] = await db.insert(articles).values({
-        title: articleData.title,
-        content: articleData.content,
-        summary: articleData.summary,
-        imageUrl: imageUrl,
-        audioUrl: audioUrl,
-        createdAt: new Date()
-      }).returning();
+      try {
+        const [article] = await db.insert(articles).values({
+          title: articleData.title,
+          content: articleData.content,
+          summary: articleData.summary,
+          imageUrl: imageUrl,
+          audioUrl: audioUrl,
+          createdAt: new Date()
+        }).returning();
 
-      // Insert citations
-      if (articleData.citations && Array.isArray(articleData.citations)) {
-        const citationPromises = articleData.citations.map(citation =>
-          db.insert(citations).values({
-            articleId: article.id,
-            source: citation.source,
-            author: citation.author,
-            year: citation.year,
-            url: citation.url,
-            quote: citation.quote
-          })
-        );
-        await Promise.all(citationPromises);
+        // Insert citations
+        if (articleData.citations && Array.isArray(articleData.citations)) {
+          const citationPromises = articleData.citations.map(citation =>
+            db.insert(citations).values({
+              articleId: article.id,
+              source: citation.source,
+              author: citation.author,
+              year: citation.year,
+              url: citation.url,
+              quote: citation.quote
+            })
+          );
+          await Promise.all(citationPromises);
+        }
+
+        res.json(article);
+      } catch (error: any) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to save article to database');
       }
-
-      res.json(article);
     } catch (error) {
       console.error('Error generating article:', error);
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
