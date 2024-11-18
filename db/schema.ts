@@ -2,6 +2,13 @@ import { pgTable, text, integer, timestamp, jsonb, boolean } from "drizzle-orm/p
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const users = pgTable("users", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+});
+
 export const articles = pgTable("articles", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   title: text("title").notNull(),
@@ -11,7 +18,8 @@ export const articles = pgTable("articles", {
   audioUrl: text("audio_url"),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull()
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  userId: integer("user_id").references(() => users.id)
 });
 
 export const citations = pgTable("citations", {
@@ -24,11 +32,19 @@ export const citations = pgTable("citations", {
   quote: text("quote")
 });
 
+// User schemas
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = z.infer<typeof selectUserSchema>;
+
+// Article schemas
 export const insertArticleSchema = createInsertSchema(articles);
 export const selectArticleSchema = createSelectSchema(articles);
 export type InsertArticle = z.infer<typeof insertArticleSchema>;
 export type Article = z.infer<typeof selectArticleSchema>;
 
+// Citation schemas
 export const insertCitationSchema = createInsertSchema(citations);
 export const selectCitationSchema = createSelectSchema(citations);
 export type InsertCitation = z.infer<typeof insertCitationSchema>;

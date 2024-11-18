@@ -6,6 +6,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { validateArticleResponse, createImagePrompt, enhanceResearchPrompt } from "../client/src/lib/openai";
+import { setupAuth } from "./auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -17,6 +18,14 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
   }
 });
+
+// Authentication middleware
+const requireAuth = (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  next();
+};
 
 // Helper function to upload image to S3 and generate signed URL
 async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<string> {
@@ -48,8 +57,11 @@ async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<s
 }
 
 export function registerRoutes(app: Express) {
-  // Generate article
-  app.post("/api/articles/generate", async (req, res) => {
+  // Set up authentication routes
+  setupAuth(app);
+
+  // Generate article (protected)
+  app.post("/api/articles/generate", requireAuth, async (req, res) => {
     try {
       const { topic } = req.body;
       if (!topic || typeof topic !== 'string') {
@@ -140,7 +152,7 @@ export function registerRoutes(app: Express) {
         throw new Error('Failed to generate audio content');
       }
 
-      // Insert article with audio URL
+      // Insert article with audio URL and user ID
       try {
         const [article] = await db.insert(articles).values({
           title: articleData.title,
@@ -148,6 +160,7 @@ export function registerRoutes(app: Express) {
           summary: articleData.summary,
           imageUrl: imageUrl,
           audioUrl: audioUrl,
+          userId: req.user.id,
           createdAt: new Date()
         }).returning();
 
@@ -178,8 +191,8 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Get all articles with pagination
-  app.get("/api/articles", async (req, res) => {
+  // Get all articles with pagination (protected)
+  app.get("/api/articles", requireAuth, async (req, res) => {
     try {
       const showArchived = req.query.showArchived === 'true';
       const page = parseInt(req.query.page as string) || 1;
@@ -190,12 +203,14 @@ export function registerRoutes(app: Express) {
       const totalCount = await db
         .select({ count: sql`count(*)` })
         .from(articles)
+        .where(eq(articles.userId, req.user.id))
         .where(showArchived ? undefined : eq(articles.archived, false));
 
       // Get paginated articles
       const paginatedArticles = await db
         .select()
         .from(articles)
+        .where(eq(articles.userId, req.user.id))
         .where(showArchived ? undefined : eq(articles.archived, false))
         .orderBy(sql`${articles.createdAt} DESC`)
         .limit(limit)
@@ -216,8 +231,8 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Archive/Unarchive article
-  app.patch("/api/articles/:id/archive", async (req, res) => {
+  // Archive/Unarchive article (protected)
+  app.patch("/api/articles/:id/archive", requireAuth, async (req, res) => {
     try {
       const articleId = parseInt(req.params.id);
       const { archived } = req.body;
@@ -234,6 +249,7 @@ export function registerRoutes(app: Express) {
         .update(articles)
         .set({ archived })
         .where(eq(articles.id, articleId))
+        .where(eq(articles.userId, req.user.id))
         .returning();
 
       if (!updatedArticle) {
@@ -247,8 +263,8 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Bulk archive/unarchive articles
-  app.patch("/api/articles/bulk/archive", async (req, res) => {
+  // Bulk archive/unarchive articles (protected)
+  app.patch("/api/articles/bulk/archive", requireAuth, async (req, res) => {
     try {
       const { articleIds, archived } = req.body;
 
@@ -264,6 +280,7 @@ export function registerRoutes(app: Express) {
         .update(articles)
         .set({ archived })
         .where(inArray(articles.id, articleIds))
+        .where(eq(articles.userId, req.user.id))
         .returning();
 
       if (!updatedArticles.length) {
@@ -277,17 +294,30 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Get article citations
-  app.get("/api/articles/:id/citations", async (req, res) => {
+  // Get article citations (protected)
+  app.get("/api/articles/:id/citations", requireAuth, async (req, res) => {
     try {
       const articleId = parseInt(req.params.id);
       if (isNaN(articleId)) {
         return res.status(400).json({ error: 'Invalid article ID' });
       }
 
-      const articleCitations = await db.select()
+      const [article] = await db
+        .select()
+        .from(articles)
+        .where(eq(articles.id, articleId))
+        .where(eq(articles.userId, req.user.id))
+        .limit(1);
+
+      if (!article) {
+        return res.status(404).json({ error: 'Article not found' });
+      }
+
+      const articleCitations = await db
+        .select()
         .from(citations)
         .where(eq(citations.articleId, articleId));
+      
       res.json(articleCitations);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch citations';
@@ -295,27 +325,29 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Generate speech from article content
-  app.post("/api/articles/:id/speech", async (req, res) => {
+  // Generate speech from article content (protected)
+  app.post("/api/articles/:id/speech", requireAuth, async (req, res) => {
     try {
       const articleId = parseInt(req.params.id);
       if (isNaN(articleId)) {
         return res.status(400).json({ error: 'Invalid article ID' });
       }
 
-      const article = await db.select()
+      const [article] = await db
+        .select()
         .from(articles)
         .where(eq(articles.id, articleId))
+        .where(eq(articles.userId, req.user.id))
         .limit(1);
       
-      if (!article.length) {
+      if (!article) {
         return res.status(404).json({ error: "Article not found" });
       }
 
       const mp3Response = await openai.audio.speech.create({
         model: "tts-1",
         voice: "alloy",
-        input: article[0].content.replace(/<[^>]*>/g, '') // Remove HTML tags for audio
+        input: article.content.replace(/<[^>]*>/g, '') // Remove HTML tags for audio
       });
 
       const buffer = Buffer.from(await mp3Response.arrayBuffer());
