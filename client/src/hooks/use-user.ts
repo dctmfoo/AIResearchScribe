@@ -28,19 +28,25 @@ export function useUser() {
     isLoading: !error && !data,
     error,
     login: async (user: InsertUser) => {
-      const res = await handleRequest("/login", "POST", user);
-      await mutate();
-      return res;
+      const result = await handleRequest("/login", "POST", user);
+      if (result.ok && result.user) {
+        await mutate(result.user);
+      }
+      return result;
     },
     logout: async () => {
-      const res = await handleRequest("/logout", "POST");
-      await mutate(undefined);
-      return res;
+      const result = await handleRequest("/logout", "POST");
+      if (result.ok) {
+        await mutate(undefined);
+      }
+      return result;
     },
     register: async (user: InsertUser) => {
-      const res = await handleRequest("/register", "POST", user);
-      await mutate();
-      return res;
+      const result = await handleRequest("/register", "POST", user);
+      if (result.ok && result.user) {
+        await mutate(result.user);
+      }
+      return result;
     },
   };
 }
@@ -48,6 +54,8 @@ export function useUser() {
 type RequestResult =
   | {
       ok: true;
+      user?: User;
+      message?: string;
     }
   | {
       ok: false;
@@ -67,12 +75,17 @@ async function handleRequest(
       credentials: "include",
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      const errorData = await response.json();
-      return { ok: false, message: errorData.message };
+      return { ok: false, message: data.message };
     }
 
-    return { ok: true };
+    return { 
+      ok: true,
+      user: data.user,
+      message: data.message
+    };
   } catch (e: any) {
     return { ok: false, message: e.toString() };
   }
