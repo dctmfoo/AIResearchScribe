@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { articles, citations } from "../db/schema";
 import OpenAI from "openai";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { validateArticleResponse, createImagePrompt, enhanceResearchPrompt } from "../client/src/lib/openai";
@@ -17,17 +17,6 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
   }
 });
-
-// Helper function to check database connection
-async function checkDatabaseConnection() {
-  try {
-    await db.execute(sql`SELECT 1`);
-    return true;
-  } catch (error) {
-    console.error('Database connection error:', error);
-    return false;
-  }
-}
 
 // Helper function to upload image to S3 and generate signed URL
 async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<string> {
@@ -59,87 +48,6 @@ async function uploadImageToS3(imageBuffer: Buffer, fileName: string): Promise<s
 }
 
 export function registerRoutes(app: Express) {
-  // Add database health check endpoint
-  app.get("/api/health", async (req, res) => {
-    const isConnected = await checkDatabaseConnection();
-    if (isConnected) {
-      res.json({ status: 'healthy', database: 'connected' });
-    } else {
-      res.status(503).json({ status: 'unhealthy', database: 'disconnected' });
-    }
-  });
-
-  // Get all articles with pagination and error handling
-  app.get("/api/articles", async (req, res) => {
-    try {
-      // Check database connection first
-      const isConnected = await checkDatabaseConnection();
-      if (!isConnected) {
-        throw new Error('Database connection is not available');
-      }
-
-      const showArchived = req.query.showArchived === 'true';
-      const page = Math.max(1, parseInt(req.query.page as string) || 1);
-      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 9));
-      const offset = (page - 1) * limit;
-
-      // Get total count for pagination
-      const totalCountResult = await db
-        .select({ count: sql`count(*)::integer` })
-        .from(articles)
-        .where(showArchived ? undefined : eq(articles.archived, false));
-
-      if (!totalCountResult.length) {
-        throw new Error('Failed to get article count');
-      }
-
-      const totalCount = totalCountResult[0].count;
-      const totalPages = Math.ceil(totalCount / limit);
-
-      // Validate page number
-      if (page > totalPages && totalPages > 0) {
-        return res.status(400).json({
-          error: 'Invalid page number',
-          message: `Page ${page} does not exist. Total pages available: ${totalPages}`
-        });
-      }
-
-      // Get paginated articles with timeout
-      const paginatedArticles = await Promise.race([
-        db
-          .select()
-          .from(articles)
-          .where(showArchived ? undefined : eq(articles.archived, false))
-          .orderBy(sql`${articles.createdAt} DESC`)
-          .limit(limit)
-          .offset(offset),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Database query timeout')), 5000)
-        )
-      ]);
-
-      res.json({
-        articles: paginatedArticles,
-        pagination: {
-          total: totalCount,
-          page,
-          limit,
-          totalPages
-        }
-      });
-    } catch (error) {
-      console.error('Error in /api/articles:', error);
-      const isConnectionError = error instanceof Error && 
-        (error.message.includes('connection') || error.message.includes('timeout'));
-      
-      res.status(isConnectionError ? 503 : 500).json({
-        error: isConnectionError ? 'Database connection error' : 'Failed to fetch articles',
-        message: error instanceof Error ? error.message : 'An unexpected error occurred',
-        retry: isConnectionError
-      });
-    }
-  });
-
   // Generate article
   app.post("/api/articles/generate", async (req, res) => {
     try {

@@ -1,10 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, RefreshCcw } from "lucide-react";
 import ArticleCard from "../components/ArticleCard";
 import ResearchForm from "../components/ResearchForm";
 import { Archive, ArchiveRestore, Loader2, ChevronDown } from "lucide-react";
@@ -33,9 +31,6 @@ interface PaginationResponse {
     limit: number;
     totalPages: number;
   };
-  error?: string;
-  message?: string;
-  retry?: boolean;
 }
 
 export default function HomePage() {
@@ -45,57 +40,13 @@ export default function HomePage() {
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [page, setPage] = useState(1);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isRetrying, setIsRetrying] = useState(false);
   const articlesPerPage = 9;
 
-  const { data, error, isLoading, mutate: refreshData } = useSWR<PaginationResponse>(
-    `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`,
-    async (url) => {
-      const res = await fetch(url);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to fetch articles');
-      }
-      return res.json();
-    },
-    {
-      onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
-        // Only retry up to 3 times and only retry connection errors
-        if (retryCount >= 3 || !error.message.includes('connection')) return;
-        
-        // Retry after 5 seconds
-        setTimeout(() => revalidate({ retryCount }), 5000);
-      },
-    }
+  const { data, error, isLoading } = useSWR<PaginationResponse>(
+    `/api/articles?showArchived=${showArchived}&page=${page}&limit=${articlesPerPage}`
   );
 
   const { toast } = useToast();
-
-  // Check database health periodically when there's an error
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (error?.message?.includes('connection')) {
-      interval = setInterval(async () => {
-        try {
-          const health = await fetch('/api/health');
-          if (health.ok) {
-            const data = await health.json();
-            if (data.status === 'healthy') {
-              refreshData();
-              clearInterval(interval);
-            }
-          }
-        } catch (e) {
-          console.error('Health check failed:', e);
-        }
-      }, 10000);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [error, refreshData]);
 
   const handleGenerate = async (topic: string) => {
     setIsGenerating(true);
@@ -221,25 +172,6 @@ export default function HomePage() {
     }
   };
 
-  const handleRetry = async () => {
-    setIsRetrying(true);
-    try {
-      await refreshData();
-      toast({
-        title: "Refresh Successful",
-        description: "Articles have been refreshed successfully."
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to refresh articles',
-        variant: "destructive"
-      });
-    } finally {
-      setIsRetrying(false);
-    }
-  };
-
   const articles = data?.articles || [];
   const hasMore = data ? page < data.pagination.totalPages : false;
 
@@ -272,34 +204,6 @@ export default function HomePage() {
         </div>
 
         <div className="relative">
-          {error && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Error Loading Articles</AlertTitle>
-              <AlertDescription className="flex items-center justify-between">
-                <span>
-                  {error instanceof Error ? error.message : 'Failed to load articles'}
-                  {error.message?.includes('connection') && 
-                    '. The system will automatically retry when the connection is restored.'}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRetry}
-                  disabled={isRetrying}
-                  className="ml-4"
-                >
-                  {isRetrying ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCcw className="w-4 h-4 mr-2" />
-                  )}
-                  Retry Now
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-
           {articles.length > 0 && (
             <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b p-4 mb-4">
               <div className="flex items-center justify-between max-w-7xl mx-auto">
@@ -360,6 +264,12 @@ export default function HomePage() {
           )}
 
           <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px] px-4">
+            {error && (
+              <div className="text-destructive text-center py-4">
+                Failed to load articles. Please try again later.
+              </div>
+            )}
+          
             {!error && isLoading && (
               <div className="text-muted-foreground text-center py-4">
                 Loading articles...
