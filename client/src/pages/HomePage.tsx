@@ -9,6 +9,7 @@ import { Archive, ArchiveRestore, Loader2, ChevronDown, AlertTriangle } from "lu
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Article } from "../../db/schema";
+import type { ArticleLength } from "@/lib/openai";
 
 // Academic-themed decorative SVG
 const AcademicDecoration = () => (
@@ -80,13 +81,13 @@ export default function HomePage() {
 
   const { toast } = useToast();
 
-  const handleGenerate = async (topic: string) => {
+  const handleGenerate = async (topic: string, length: ArticleLength) => {
     setIsGenerating(true);
     
     // Create optimistic article data
     const optimisticArticle = {
       id: Date.now(), // Temporary ID
-      title: `Generating article about ${topic}...`,
+      title: `Generating ${length} article about ${topic}...`,
       content: "Content is being generated...",
       summary: "Please wait while we generate your article...",
       imageUrl: null,
@@ -116,7 +117,7 @@ export default function HomePage() {
       const response = await fetch("/api/articles/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic })
+        body: JSON.stringify({ topic, length })
       });
       
       if (!response.ok) throw new Error("Failed to generate article");

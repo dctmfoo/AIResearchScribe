@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+export type ArticleLength = "short" | "medium" | "long";
 
 // Response types for article generation
 export const articleResponseSchema = z.object({
@@ -18,15 +18,34 @@ export const articleResponseSchema = z.object({
 
 export type ArticleResponse = z.infer<typeof articleResponseSchema>;
 
+// Length-specific configurations
+const LENGTH_CONFIGS = {
+  short: {
+    wordCount: "300-400",
+    maxTokens: 800,
+    temperature: 0.7,
+  },
+  medium: {
+    wordCount: "600-800",
+    maxTokens: 1500,
+    temperature: 0.7,
+  },
+  long: {
+    wordCount: "1000-1200",
+    maxTokens: 2000,
+    temperature: 0.7,
+  },
+} as const;
+
 // System prompts for different generation tasks
 const SYSTEM_PROMPTS = {
-  articleGeneration: `You are an academic research assistant specialized in generating comprehensive research articles. Follow these guidelines:
+  articleGeneration: (length: ArticleLength) => `You are an academic research assistant specialized in generating comprehensive research articles. Follow these guidelines:
 
 1. Structure the article academically with clear sections
 2. Include relevant citations and references
 3. Maintain formal academic tone
 4. Provide evidence-based arguments
-5. Generate content between 400-800 words
+5. Generate content between ${LENGTH_CONFIGS[length].wordCount} words
 6. Include a concise summary
 7. Format citations in APA style
 8. Use proper HTML formatting:
@@ -77,8 +96,8 @@ Topic: ${topic}
 Generate an academic illustration suitable for a research paper or journal article.`;
 }
 
-// Helper function to enhance research topic
-export function enhanceResearchPrompt(topic: string): string {
+// Helper function to enhance research topic with length configuration
+export function enhanceResearchPrompt(topic: string, length: ArticleLength = "medium"): string {
   return `Research Topic: ${topic}
 
 Please generate a comprehensive academic article following these requirements:
@@ -88,9 +107,11 @@ Please generate a comprehensive academic article following these requirements:
 4. Address potential limitations and future research directions
 5. Maintain academic rigor and scholarly tone
 6. Use proper HTML formatting for structure and readability
+7. Target word count: ${LENGTH_CONFIGS[length].wordCount} words
 
-${SYSTEM_PROMPTS.articleGeneration}`;
+${SYSTEM_PROMPTS.articleGeneration(length)}`;
 }
 
-// Export system prompts for use in API routes
+// Export configs and system prompts for use in API routes
 export const prompts = SYSTEM_PROMPTS;
+export const lengthConfigs = LENGTH_CONFIGS;

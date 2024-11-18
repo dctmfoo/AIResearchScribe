@@ -8,13 +8,17 @@ import { Loader2, Mic, MicOff } from "lucide-react";
 import LoadingQuotes from "./LoadingQuotes";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const formSchema = z.object({
   topic: z.string().min(3, "Topic must be at least 3 characters"),
+  length: z.enum(["short", "medium", "long"], {
+    required_error: "Please select an article length",
+  }),
 });
 
 interface ResearchFormProps {
-  onSubmit: (topic: string) => Promise<void>;
+  onSubmit: (topic: string, length: "short" | "medium" | "long") => Promise<void>;
   isLoading: boolean;
 }
 
@@ -49,6 +53,7 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
     resolver: zodResolver(formSchema),
     defaultValues: {
       topic: "",
+      length: "medium", // Default to medium length
     },
   });
 
@@ -89,7 +94,7 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
   }, [checkSpeechRecognition, toast]);
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
-    await onSubmit(values.topic);
+    await onSubmit(values.topic, values.length);
     form.reset();
   };
 
@@ -313,6 +318,50 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="length"
+          render={({ field }) => (
+            <FormItem className="space-y-3">
+              <FormLabel className="text-lg font-serif">Article Length</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  className="flex gap-4"
+                  disabled={isLoading}
+                >
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="short" />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Short (~300 words)
+                    </FormLabel>
+                  </FormItem>
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="medium" />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Medium (~600 words)
+                    </FormLabel>
+                  </FormItem>
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="long" />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Long (~1000 words)
+                    </FormLabel>
+                  </FormItem>
+                </RadioGroup>
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
         <Button 
           type="submit" 
           className="w-full"

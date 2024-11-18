@@ -5,7 +5,7 @@ import OpenAI from "openai";
 import { eq, inArray, sql } from "drizzle-orm";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { validateArticleResponse, createImagePrompt, enhanceResearchPrompt } from "../client/src/lib/openai";
+import { validateArticleResponse, createImagePrompt, enhanceResearchPrompt, lengthConfigs, type ArticleLength } from "../client/src/lib/openai";
 import { setupAuth } from "./auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -63,9 +63,13 @@ export function registerRoutes(app: Express) {
   // Generate article (protected)
   app.post("/api/articles/generate", requireAuth, async (req, res) => {
     try {
-      const { topic } = req.body;
+      const { topic, length = "medium" } = req.body;
       if (!topic || typeof topic !== 'string') {
         return res.status(400).json({ error: 'Invalid topic provided' });
+      }
+
+      if (!['short', 'medium', 'long'].includes(length)) {
+        return res.status(400).json({ error: 'Invalid length specified' });
       }
 
       if (!process.env.OPENAI_API_KEY) {
@@ -80,11 +84,11 @@ export function registerRoutes(app: Express) {
           messages: [
             {
               role: "system",
-              content: enhanceResearchPrompt(topic)
+              content: enhanceResearchPrompt(topic, length as ArticleLength)
             }
           ],
-          temperature: 0.7,
-          max_tokens: 2000,
+          temperature: lengthConfigs[length as ArticleLength].temperature,
+          max_tokens: lengthConfigs[length as ArticleLength].maxTokens,
         });
       } catch (error: any) {
         console.error('OpenAI API Error:', error);
