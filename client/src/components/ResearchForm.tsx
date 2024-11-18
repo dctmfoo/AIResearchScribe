@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, Mic, MicOff } from "lucide-react";
 import LoadingQuotes from "./LoadingQuotes";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
@@ -18,9 +18,14 @@ interface ResearchFormProps {
   isLoading: boolean;
 }
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
 export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps) {
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -38,6 +43,15 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
     if (!supported) {
       console.warn('Speech recognition is not supported in this browser');
     }
+
+    // Cleanup function
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+        setIsListening(false);
+      }
+    };
   }, []);
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -45,20 +59,32 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
     form.reset();
   };
 
-  const toggleSpeechRecognition = () => {
-    if (isListening) {
-      setIsListening(false);
-      return;
+  const getErrorMessage = (error: string): string => {
+    switch (error) {
+      case 'network':
+        return "Network connection error. Please check your internet connection.";
+      case 'no-speech':
+        return "No speech was detected. Please try again.";
+      case 'audio-capture':
+        return "No microphone was found. Please check your microphone settings.";
+      case 'not-allowed':
+        return "Microphone permission was denied. Please allow microphone access.";
+      case 'aborted':
+        return "Speech recognition was aborted.";
+      default:
+        return "An error occurred during speech recognition. Please try again.";
     }
+  };
 
+  const startRecognition = () => {
     const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-    const recognition = new SpeechRecognition();
+    recognitionRef.current = new SpeechRecognition();
     
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
+    recognitionRef.current.continuous = false;
+    recognitionRef.current.interimResults = false;
+    recognitionRef.current.lang = 'en-US';
 
-    recognition.onstart = () => {
+    recognitionRef.current.onstart = () => {
       setIsListening(true);
       toast({
         title: "Listening...",
@@ -66,27 +92,67 @@ export default function ResearchForm({ onSubmit, isLoading }: ResearchFormProps)
       });
     };
 
-    recognition.onresult = (event) => {
+    recognitionRef.current.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       form.setValue('topic', transcript, { shouldValidate: true });
       setIsListening(false);
+      setRetryCount(0); // Reset retry count on successful recognition
     };
 
-    recognition.onerror = (event) => {
+    recognitionRef.current.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
-      toast({
-        title: "Error",
-        description: "Failed to recognize speech. Please try again.",
-        variant: "destructive",
-      });
+
+      const errorMessage = getErrorMessage(event.error);
+
+      // Handle network errors with retry mechanism
+      if (event.error === 'network' && retryCount < MAX_RETRIES) {
+        toast({
+          title: "Network Error",
+          description: `Retrying... (Attempt ${retryCount + 1}/${MAX_RETRIES})`,
+          variant: "destructive",
+        });
+        
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          startRecognition();
+        }, RETRY_DELAY);
+      } else {
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        setRetryCount(0); // Reset retry count after max retries or different error
+      }
     };
 
-    recognition.onend = () => {
+    recognitionRef.current.onend = () => {
       setIsListening(false);
     };
 
-    recognition.start();
+    try {
+      recognitionRef.current.start();
+    } catch (error) {
+      console.error('Failed to start speech recognition:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start speech recognition. Please try again.",
+        variant: "destructive",
+      });
+      setIsListening(false);
+    }
+  };
+
+  const toggleSpeechRecognition = () => {
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.abort();
+      setIsListening(false);
+      setRetryCount(0);
+      return;
+    }
+
+    startRecognition();
   };
 
   return (
