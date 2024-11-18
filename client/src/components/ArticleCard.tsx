@@ -149,12 +149,15 @@ export default function ArticleCard({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div 
-                      className={`flex-none transition-transform duration-200 ${selected ? 'scale-110' : ''}`}
-                      onClick={handleSelect}
+                      className="flex-none transition-transform duration-200"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect?.(!selected);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          handleSelect(e);
+                          onSelect?.(!selected);
                         }
                       }}
                       role="checkbox"
@@ -162,18 +165,15 @@ export default function ArticleCard({
                       aria-checked={selected}
                       aria-label={`Select ${article.title}`}
                     >
-                      <div className="cursor-pointer">
-                        <Checkbox 
-                          checked={selected}
-                          onCheckedChange={(checked) => {
-                            if (typeof checked === 'boolean') {
-                              onSelect?.(checked);
-                            }
-                          }}
-                          className="border-2 hover:border-primary/50"
-                          aria-hidden="true"
-                        />
-                      </div>
+                      <Checkbox 
+                        checked={selected}
+                        onCheckedChange={(checked) => {
+                          if (typeof checked === 'boolean') {
+                            onSelect?.(checked);
+                          }
+                        }}
+                        className="border-2 hover:border-primary/50"
+                      />
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
